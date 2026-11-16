@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tonic — generator fuzz test</title>
+<pre id="out">running…</pre>
+<script src="js/theory.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/deepcut.js"></script>
+<script>
+/* Runs every generator thousands of times and checks the questions are well formed:
+   one correct answer, no duplicate options, clean spellings, sane audio. */
+(function () {
+  const T = Theory, Q = Questions;
+  const errs = [], stats = {};
+  const fail = (id, d, msg, q) => { if (errs.length < 60) errs.push(`${id} d${d}: ${msg}` + (q ? ' | ' + q.prompt + ' -> ' + q.answerText : '')); };
+  let total = 0;
+  Q.GENS.forEach((g) => {
+    for (let d = g.min; d <= g.max; d++) {
+      const keys = new Set();
+      for (let i = 0; i < 400; i++) {
+        const rng = T.makeRng(g.id + ':' + d + ':' + i);
+        let q;
+        try { q = Q.make(g, rng, d); } catch (e) { fail(g.id, d, 'threw ' + e.message); continue; }
+        total++;
+        keys.add(q.key);
+        if (!q.prompt || !q.explain || !q.answerText || !q.key) fail(g.id, d, 'missing field', q);
+        if (/undefined|NaN|null/.test(q.prompt + q.explain + q.answerText + (q.sub || ''))) fail(g.id, d, 'bad text: ' + q.explain, q);
+        const inp = q.input;
+        if (inp.kind === 'choice') {
+          const labels = inp.options.map((o) => o.label);
+          if (new Set(labels).size !== labels.length) fail(g.id, d, 'duplicate options ' + labels.join(' / '), q);
+          if (inp.answer < 0 || inp.answer >= labels.length) fail(g.id, d, 'bad answer index', q);
+          if (labels.length < 2) fail(g.id, d, 'too few options', q);
+          if (inp.layout !== 'letters' && labels.length < 3 && !(g.id === 'ear-chord' || g.id === 'ear-scale')) fail(g.id, d, 'only ' + labels.length + ' options', q);
+          if (labels.some((l) => /undefined|NaN/.test(l) || !l)) fail(g.id, d, 'bad label ' + labels.join(' / '), q);
+          if (g.id !== 'chord-formula' && labels.some((l) => /♯♯|♭♭|×/.test(l))) fail(g.id, d, 'double accidental in options ' + labels.join(' / '), q);
+        } else {
+          if (inp.exact) { if (!inp.targetMidis.every((m) => m >= inp.lo && m <= inp.hi)) fail(g.id, d, 'target off keyboard', q); }
+          else if (new Set(inp.targetPcs).size !== inp.targetPcs.length) fail(g.id, d, 'dup target pcs', q);
+        }
+        const evs = (q.audio || []).concat(q.audioAfter || []);
+        evs.forEach((ev) => ev.midis.forEach((m) => { if (!(m >= 33 && m <= 96)) fail(g.id, d, 'midi out of range ' + m, q); }));
+        [q.visual, q.reveal].forEach((v) => {
+          if (v && v.kind === 'piano') {
+            if (v.lo % 12 !== 0 || v.hi % 12 !== 11) fail(g.id, d, 'piano range not C..B', q);
+            (v.marks || []).forEach((m) => { if (m < v.lo || m > v.hi) fail(g.id, d, 'mark off keyboard', q); });
+          }
+        });
+      }
+      stats[g.id + ' d' + d] = keys.size;
+    }
+  });
+  // dailies
+  let dailies = 0;
+  ['beginner', 'intermediate', 'advanced'].forEach((tier) => {
+    for (let day = 1; day <= 120; day++) {
+      const ds = '2027-' + String(1 + (day % 12)).padStart(2, '0') + '-' + String(1 + (day % 28)).padStart(2, '0');
+      try {
+        const qs = Q.daily(ds, tier);
+        if (qs.length !== 8) fail('daily', tier, 'length ' + qs.length);
+        if (new Set(qs.map((q) => q.gen)).size < 7) fail('daily', tier, 'repeated generators: ' + qs.map((q) => q.gen).join(','));
+        const again = Q.daily(ds, tier);
+        if (JSON.stringify(again.map((q) => q.key + q.answerText)) !== JSON.stringify(qs.map((q) => q.key + q.answerText))) fail('daily', tier, 'not deterministic');
+        const dc = DeepCut.make(T.makeRng('dc:' + ds + ':' + tier), tier);
+        if (dc.answers.length < 6) fail('deepcut', tier, 'few answers');
+        if (new Set(dc.answers.map((a) => a.label)).size !== dc.answers.length) fail('deepcut', tier, 'dup labels');
+        dailies++;
+      } catch (e) { fail('daily', tier, 'threw ' + e.message + ' ' + (e.stack || '').split('\n')[1]); }
+    }
+  });
+  const out = { total, dailies, errors: errs, variety: stats };
+  window.__fuzz = out;
+  document.getElementById('out').textContent = JSON.stringify(out, null, 1);
+})();
+</script>
