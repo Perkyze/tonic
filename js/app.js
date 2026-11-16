@@ -314,12 +314,7 @@
   // =====================================================================
   // Learn path
   // =====================================================================
-  const CHAPTERS = [
-    { title: 'First notes', blurb: 'Note names, steps and the major scale', ids: ['alphabet', 'steps', 'major-scale'] },
-    { title: 'Intervals and chords', blurb: 'Distances between notes, major and minor', ids: ['intervals', 'major-chords', 'minor-chords'] },
-    { title: 'Reading and guitar', blurb: 'The staff, the six strings, first chords', ids: ['staff', 'guitar-strings', 'guitar-chords'] },
-    { title: 'Keys and harmony', blurb: 'Key signatures, chord families, pentatonics', ids: ['keys', 'chord-family', 'pentatonic'] },
-  ];
+  const CHAPTERS = L.CHAPTERS;
   const starCount = (rec) => (!rec ? 0 : rec.best >= rec.total ? 3 : rec.best >= rec.total * 0.6 ? 2 : 1);
   const starRow = (n) => h('span', { class: 'stars', 'aria-label': n + ' of 3 stars' }, [0, 1, 2].map((i) => h('i', { class: i < n ? 'on' : '' }, '★')));
 
@@ -357,7 +352,7 @@
         return [btn, label];
       });
       const line = `<svg viewBox="0 0 ${PW} ${list.length * ROW}" aria-hidden="true"><path d="${d}"/></svg>`;
-      const ring = h('div', { class: 'ring', 'aria-label': `${chDone} of ${list.length} lessons done` }, h('b', null, `${chDone}/${list.length}`));
+      const ring = h('div', { class: 'ring', 'aria-label': `${chDone} of ${list.length} lessons done` }, h('b', null, chDone === list.length ? '🏆' : `${chDone}/${list.length}`));
       ring.style.setProperty('--p', pct);
       return h('section', { class: 'chapter' + (chDone === list.length ? ' complete' : '') },
         h('div', { class: 'chapter-head' },
@@ -369,7 +364,10 @@
       topbar(),
       h('div', { class: 'learn-head' },
         h('h1', null, 'Learn'),
-        h('p', { class: 'lead' }, doneN === L.LESSONS.length ? 'All twelve lessons done. Tap any of them to revisit it.' : `${doneN} of ${L.LESSONS.length} lessons done. Each one takes about three minutes.`),
+        h('p', { class: 'lead' }, doneN === L.LESSONS.length ? 'Every lesson done. Tap any of them to revisit it and chase the stars you are missing.' : `${doneN} of ${L.LESSONS.length} lessons done. Each one takes about three minutes.`),
+        h('div', { class: 'learn-stats' },
+          h('span', null, '⭐ ', h('b', null, String(L.LESSONS.reduce((s, l) => s + starCount(st.lessons[l.id]), 0))), ` / ${L.LESSONS.length * 3} stars`),
+          h('span', null, '🏆 ', h('b', null, String(CHAPTERS.filter((ch) => ch.ids.every((id) => st.lessons[id])).length)), ` / ${CHAPTERS.length} chapters`)),
         h('span', { class: 'bar' }, h('i', { style: { width: Math.round((doneN / L.LESSONS.length) * 100) + '%' } }))),
       chapters), 'learn');
     if (nextEl && L.LESSONS.indexOf(next) > 2) nextEl.scrollIntoView({ block: 'center' });
@@ -1062,12 +1060,25 @@
       xpGain = r.first ? 40 + correct * 8 : correct * 4;
       icon = les.icon; tone = correct >= totalQ * 0.6 ? 'great' : 'good';
       starsN = correct >= totalQ ? 3 : correct >= totalQ * 0.6 ? 2 : 1;
+      // finishing the last lesson of a chapter wins its trophy, once
+      const ci = CHAPTERS.findIndex((ch) => ch.ids.includes(les.id));
+      const lessonsNow = S.load().lessons;
+      if (ci >= 0 && CHAPTERS[ci].ids.every((id) => lessonsNow[id]) && S.completeChapter(ci)) {
+        xpGain += 60;
+        lead = h('section', { class: 'prize' },
+          h('span', { class: 'prize-ico', 'aria-hidden': 'true' }, '🏆'),
+          h('div', null, h('span', { class: 'eyebrow' }, `Chapter ${ci + 1} complete`), h('strong', null, '+60 XP'),
+            h('span', null, `You finished “${CHAPTERS[ci].title}”. ${CHAPTERS[ci + 1] ? 'Next chapter: ' + CHAPTERS[ci + 1].title + '.' : 'That was the last chapter — you have finished the whole path.'}`)));
+        party = true;
+      }
+      const totalStars = L.LESSONS.reduce((s, l) => s + starCount(lessonsNow[l.id]), 0);
+      S.setStars(totalStars);
       tiles = [tile('mint', 'Correct', `${correct}/${totalQ}`), fixedTile, tile('yellow', 'Lessons', `${Object.keys(S.load().lessons).length}/${L.LESSONS.length}`)];
       primary = h('div', { class: 'actions' },
         nextLes ? h('button', { class: 'btn big', onclick: () => lesson(nextLes, 0) }, `Next: ${nextLes.title}`) : h('button', { class: 'btn big', onclick: home }, 'Back home'),
         correct < totalQ ? h('button', { class: 'ghost', onclick: () => lesson(les, 0) }, 'Review this lesson') : null,
         h('button', { class: 'ghost', onclick: lessons }, 'Back to the path'));
-      party = correct >= totalQ * 0.6;
+      party = party || correct >= totalQ * 0.6;
     } else if (ses.mode === 'practice') {
       title = correct === totalQ ? 'Flawless.' : correct >= totalQ * 0.7 ? 'Good session.' : 'That’s how you learn.';
       xpGain = ses.log.reduce((s, l) => s + (l.correct ? 6 + l.q.diff * 2 : 1), 0) + (ses.fixed || 0) * 3;

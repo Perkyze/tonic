@@ -26,7 +26,9 @@ The app has four tabs along the bottom: **Today** (the Daily Set, your week and 
 **Learn** (the lesson path), **Practice** (skills, games and the finder) and **Profile**
 (level, achievements, settings).
 
-- **Learn** — twelve short lessons for complete beginners (note names, steps, the major scale,
+- **Learn** — 24 short lessons in eight chapters, from zero up to seventh chords, minor keys,
+  the bass clef, the guitar neck and the modes. Each lesson earns up to three stars, and
+  finishing a chapter wins a trophy and bonus XP. The first chapters cover (note names, steps, the major scale,
   intervals, major and minor chords, reading the staff, guitar strings and first chords, keys,
   chord families, the pentatonic scale). Each lesson is a few cards to read, look at and listen
   to, then five questions on exactly that topic, with no timer.
@@ -45,7 +47,7 @@ The app has four tabs along the bottom: **Today** (the Daily Set, your week and 
 - **Survival** — three lives, a timer, rising difficulty.
 - **Help while you play** — every question has a hint (it costs the speed bonus), and every answer,
   right or wrong, opens an explanation with the notes shown and played.
-- XP and levels, a daily streak, seven skill tracks, 24 achievements. Progress lives in the
+- XP and levels, a daily streak, seven skill tracks, 29 achievements. Progress lives in the
   browser's localStorage (per device).
 
 ## Where things are

@@ -263,8 +263,8 @@
     if (p > 8) return 'above the staff — count up letter by letter from the top line';
     return p % 2 === 0 ? `on line ${p / 2 + 1}, counting from the bottom` : `in space ${(p + 1) / 2}, counting from the bottom`;
   }
-  def('read-note', 'reading', 'eye', 1, 3, (rng, d) => {
-    const clef = d <= 1 ? 'treble' : rng.chance(0.55) ? 'bass' : 'treble';
+  def('read-note', 'reading', 'eye', 1, 3, (rng, d, o) => {
+    const clef = o.clef || (d <= 1 ? 'treble' : rng.chance(0.55) ? 'bass' : 'treble');
     const range = clef === 'treble' ? [[30, 38], [28, 40], [26, 42]][d - 1] : [[18, 26], [18, 26], [14, 30]][d - 1];
     const dd = rng.int(range[0], range[1]);
     const n = { l: mod(dd, 7), a: 0, o: Math.floor(dd / 7) };
@@ -309,13 +309,13 @@
   });
 
   const SAME_SET = (a, b) => a.length === b.length && a.slice().sort().join() === b.slice().sort().join();
-  def('piano-chord', 'chords', 'eye', 2, 5, (rng, d) => {
+  def('piano-chord', 'chords', 'eye', 2, 5, (rng, d, o) => {
     const pool = [null, null,
       ['maj', 'min'],
       ['maj', 'min', 'dim', 'aug', 'sus4', 'maj7', 'dom7', 'min7'],
       ['maj', 'min', 'dom7', 'maj7', 'min7', 'm7b5', 'dim7'],
       ['maj7', 'dom7', 'min7', 'm7b5', 'mMaj7', 'six', 'min6', 'dom9', 'maj9', 'min9', 'add9'],
-    ][d];
+    ][d].filter((x) => !o.pool || o.pool.includes(x));
     const q = rng.pick(pool);
     const r = bestRoot(rng.int(0, 11), q, false, 3);
     const notes = T.chordNotes(r, q);
@@ -456,8 +456,8 @@
     };
   });
 
-  def('chord-in-key', 'harmony', 'brain', 2, 5, (rng, d) => {
-    const mode = d === 3 ? rng.pick(['major', 'minor']) : d === 5 ? rng.pick(['major', 'minor']) : d === 4 ? 'major' : 'major';
+  def('chord-in-key', 'harmony', 'brain', 2, 5, (rng, d, o) => {
+    const mode = o.mode ? o.mode : d === 3 ? rng.pick(['major', 'minor']) : d === 5 ? rng.pick(['major', 'minor']) : d === 4 ? 'major' : 'major';
     const lim = d <= 2 ? 3 : d === 3 ? (mode === 'minor' ? 3 : 6) : 6;
     const seventh = d >= 4;
     const tonic = keyFromSig(rng.int(-lim, lim), mode);

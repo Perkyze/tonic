@@ -501,6 +501,11 @@ button.chip:hover { border-color: var(--violet); }
 /* ---------- learn path ---------- */
 .learn-head { display: flex; flex-direction: column; gap: 8px; }
 .learn-head .bar i { background: var(--mint); }
+.learn-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.learn-stats span { padding: 6px 12px; border-radius: 99px; background: var(--card); border: 2px solid var(--line); font-size: 13.5px; color: var(--mute); }
+.learn-stats b { color: var(--ink); font: 800 14px var(--display); }
+.ring b { font-size: 12.5px; }
+.chapter.complete .ring b { font-size: 20px; }
 .chapter { display: flex; flex-direction: column; gap: 6px; }
 .chapter-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 20px; background: var(--card); border: 2px solid var(--line); }
 .chapter.complete .chapter-head { border-color: rgba(61, 220, 151, .6); }

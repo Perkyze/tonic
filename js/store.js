@@ -99,7 +99,12 @@
     { id: 'first', icon: '🎬', name: 'Opening Night', desc: 'Finish your first Daily Set', test: (s) => s.counters.dailies >= 1 },
     { id: 'lesson1', icon: '📖', name: 'First Lesson', desc: 'Complete a lesson in the Learn path', test: (s) => s.counters.lessons >= 1 },
     { id: 'lesson6', icon: '🎒', name: 'Good Student', desc: 'Complete 6 lessons', test: (s) => s.counters.lessons >= 6 },
-    { id: 'lessonAll', icon: '🎓', name: 'Graduate', desc: 'Complete every lesson', test: (s) => s.counters.lessons >= 12 },
+    { id: 'lessonAll', icon: '🎓', name: 'Graduate', desc: 'Complete 12 lessons', test: (s) => s.counters.lessons >= 12 },
+    { id: 'lesson24', icon: '🧑‍🏫', name: 'Scholar', desc: 'Complete all 24 lessons', test: (s) => s.counters.lessons >= 24 },
+    { id: 'chapter1', icon: '🏆', name: 'Chapter One', desc: 'Win your first chapter trophy', test: (s) => (s.counters.chapters || 0) >= 1 },
+    { id: 'chapter8', icon: '🏛️', name: 'Full Shelf', desc: 'Win all 8 chapter trophies', test: (s) => (s.counters.chapters || 0) >= 8 },
+    { id: 'stars30', icon: '⭐', name: 'Star Collector', desc: 'Earn 30 lesson stars', test: (s) => (s.counters.stars || 0) >= 30 },
+    { id: 'stars72', icon: '🌟', name: 'Perfectionist', desc: 'Earn every star: 3 on all 24 lessons', test: (s) => (s.counters.stars || 0) >= 72 },
     { id: 'guitar25', icon: '🎸', name: 'Six-String Starter', desc: 'Answer 25 guitar questions correctly', test: (s) => s.counters.guitar >= 25 },
     { id: 'perfect', icon: '🌹', name: 'Standing Ovation', desc: 'Get every question right in a Daily Set', test: (s) => s.counters.perfects >= 1 },
     { id: 'streak3', icon: '🔥', name: 'Warming Up', desc: 'Play 3 days in a row', test: (s) => s.streak.best >= 3 },
@@ -175,6 +180,17 @@
     }
     return rec;
   }
+  // Returns true the first time a chapter is completed (that is when its trophy is awarded).
+  function completeChapter(index) {
+    const st = load();
+    st.chapters = st.chapters || {};
+    if (st.chapters[index]) return false;
+    st.chapters[index] = today();
+    st.counters.chapters = Object.keys(st.chapters).length;
+    save();
+    return true;
+  }
+  function setStars(n) { const c = load().counters; c.stars = Math.max(c.stars || 0, n); save(); }
   function finishLesson(id, correct, total) {
     const st = load();
     const prev = st.lessons[id];
@@ -193,7 +209,7 @@
 
   root.Store = {
     load, save, reset, today, dateStr, dayNumber, msToMidnight, levelInfo, skillInfo, liveStreak,
-    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, addDailyDeep, finishLesson, recordSurvival, ACH,
+    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, addDailyDeep, finishLesson, completeChapter, setStars, recordSurvival, ACH,
     todayResult: () => load().daily[today()] || null,
   };
 })(window);
