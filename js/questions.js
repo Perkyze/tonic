@@ -5,6 +5,7 @@
 (function (root) {
   'use strict';
   const T = root.Theory;
+  const GT = root.Guitar;
   const { note, midi, pc, fmt, up, down, IV, IV_NAME, SEMI_NAME, SEMI_HINT, CHORDS, SCALES, mod } = T;
 
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
@@ -235,8 +236,9 @@
   // =====================================================================
   // EYE
   // =====================================================================
-  def('piano-note', 'reading', 'eye', 1, 1, (rng) => {
-    const m = rng.int(60, 71);
+  def('piano-note', 'reading', 'eye', 1, 1, (rng, d, o) => {
+    let m = rng.int(60, 71);
+    while (o.white && T.IS_BLACK[m % 12]) m = rng.int(60, 71);
     const p = m % 12;
     const black = T.IS_BLACK[p];
     const same = [...Array(12).keys()].filter((x) => T.IS_BLACK[x] === black && x !== p);
@@ -626,14 +628,14 @@
     };
   });
 
-  def('build-chord', 'chords', 'build', 1, 5, (rng, d) => {
+  def('build-chord', 'chords', 'build', 1, 5, (rng, d, o) => {
     const pool = [null,
       ['maj', 'min'], ['maj', 'min'],
       ['dim', 'aug', 'sus4', 'sus2', 'dom7', 'maj7', 'min7'],
       ['m7b5', 'dim7', 'mMaj7', 'six', 'min6', 'maj7', 'dom7', 'min7'],
       ['dom9', 'maj9', 'min9', 'add9', 'm7b5', 'mMaj7'],
     ][d];
-    const q = rng.pick(pool);
+    const q = o.q || rng.pick(pool);
     const r = d <= 1 ? note(rng.pick(['C', 'D', 'E', 'F', 'G', 'A']), 4) : bestRoot(rng.int(0, 11), q, false, 4);
     const notes = T.chordNotes(r, q);
     const n = notes.length;
@@ -650,12 +652,12 @@
     };
   });
 
-  def('build-scale', 'scales', 'build', 3, 5, (rng, d) => {
+  def('build-scale', 'scales', 'build', 3, 5, (rng, d, o) => {
     const pool = d <= 3 ? ['major', 'major', 'majpent', 'minor'] : d === 4 ? ['minor', 'harmonic', 'dorian', 'mixolydian', 'minpent'] : ['lydian', 'phrygian', 'locrian', 'melodic', 'blues', 'wholetone'];
-    const s = rng.pick(pool);
+    const s = o.scale || rng.pick(pool);
     let r;
     for (let tries = 0; tries < 40; tries++) {
-      r = bestRoot(rng.int(0, 11), s, true, 4);
+      r = bestRoot(o.roots ? rng.pick(o.roots) : rng.int(0, 11), s, true, 4);
       const ns = T.scaleNotes(r, s);
       const accs = ns.filter((n) => n.a !== 0).length;
       if (ns.every((n) => Math.abs(n.a) <= 1) && (d > 3 || accs <= 4)) break;
@@ -674,15 +676,198 @@
   });
 
   // =====================================================================
+  // FIRST STEPS — the gentlest questions
+  // =====================================================================
+  def('ear-direction', 'intervals', 'ear', 1, 1, (rng) => {
+    const a = rng.int(57, 67);
+    const same = rng.chance(0.12);
+    const step = same ? 0 : rng.int(2, 9) * (rng.chance(0.5) ? 1 : -1);
+    const b = a + step;
+    const ans = step > 0 ? 0 : step < 0 ? 1 : 2;
+    const size = Math.abs(step);
+    return {
+      key: 'ear-direction:' + (step > 0 ? 'up' : step < 0 ? 'down' : 'same'),
+      prompt: 'Is the second note higher or lower than the first?',
+      sub: 'Two notes, one after the other.',
+      audio: mel([a, b], 0.75, 0.8),
+      input: { kind: 'choice', layout: 'one', options: [{ label: 'Higher' }, { label: 'Lower' }, { label: 'The same' }], answer: ans },
+      answerText: ['Higher', 'Lower', 'The same'][ans],
+      explain: same
+        ? 'It was <b>the same note</b> twice. Hearing when nothing changes is a skill too.'
+        : `The second note was <b>${step > 0 ? 'higher' : 'lower'}</b> — ${size} semitone${size > 1 ? 's' : ''} ${step > 0 ? 'up' : 'down'}, a ${SEMI_NAME[size].toLowerCase()}. Hearing which way a melody moves is the first step of ear training; try humming along.`,
+      reveal: Object.assign({ kind: 'piano', marks: [a, b], labels: { [a]: '1st', [b]: same ? '1st' : '2nd' } }, prange([a, b])),
+    };
+  });
+
+  def('chord-notes', 'chords', 'brain', 1, 3, (rng, d, o) => {
+    const pool = d <= 2 ? ['maj', 'min'] : ['maj', 'min', 'dim', 'aug', 'maj7', 'dom7', 'min7'];
+    const q = o.q || (d <= 1 ? 'maj' : rng.pick(pool));
+    const four = CHORDS[q].iv.length === 4;
+    const alts = four ? ['maj7', 'dom7', 'min7', 'm7b5', 'mMaj7'] : d <= 2 ? ['maj', 'min', 'sus4', 'sus2', 'dim'] : ['maj', 'min', 'sus4', 'sus2', 'dim', 'aug'];
+    const flip = { maj: 'min', min: 'maj', dim: 'min', aug: 'maj', maj7: 'dom7', dom7: 'maj7', min7: 'dom7' }[q];
+    const clean = (rr, qq) => T.chordNotes(rr, qq).every((n) => Math.abs(n.a) <= 1);
+    let r, others;
+    for (let tries = 0; tries < 60; tries++) {
+      r = d <= 1 ? note(rng.pick(['C', 'F', 'G', 'D', 'A', 'E'])) : d === 2 ? note(rng.pick(['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Bb', 'Eb'])) : bestRoot(rng.int(0, 11), q, false);
+      const rr = r;
+      // only offer wrong answers that are spelled as plainly as the right one
+      others = [flip].concat(rng.shuffle(alts.filter((x) => x !== q && x !== flip))).filter((qq) => clean(rr, qq));
+      if (clean(r, q) && others.length >= 3) break;
+    }
+    const lab = (qq) => spell(T.chordNotes(r, qq));
+    return {
+      key: 'chord-notes:' + q,
+      prompt: `Which notes make up <b>${chordLabel(r, q)}</b>?`,
+      input: choice(rng, lab(q), others.map(lab)),
+      answerText: lab(q),
+      explain: `<b>${chordLabel(r, q)}</b> = ${lab(q)}. Formula <b>${CHORDS[q].formula}</b> — ${CHORDS[q].feel}.` +
+        (q === 'maj' ? ' From the root: up 4 semitones, then up 3 more.' : q === 'min' ? ' From the root: up 3 semitones, then up 4 more.' : ''),
+      reveal: pianoOf(T.chordNotes({ l: r.l, a: r.a, o: 4 }, q)),
+      audioAfter: blk(T.chordNotes({ l: r.l, a: r.a, o: 4 }, q).map(midi), 0, 1.6),
+    };
+  });
+
+  // =====================================================================
+  // GUITAR
+  // =====================================================================
+  def('guitar-string', 'guitar', 'brain', 1, 1, (rng) => {
+    const s = rng.int(0, 5);
+    const extra = s === 0 ? ' (the thickest)' : s === 5 ? ' (the thinnest)' : '';
+    return {
+      key: 'guitar-string:' + s,
+      prompt: `Which note is the open <b>${GT.ORD[s]} string</b>${extra} of a guitar?`,
+      sub: 'Open means played without pressing any fret.',
+      visual: { kind: 'fretboard', from: 1, to: 3, string: s, dots: [{ s, f: 0 }] },
+      input: choice(rng, GT.OPEN[s], rng.shuffle(['E', 'A', 'D', 'G', 'B'].filter((x) => x !== GT.OPEN[s]))),
+      answerText: GT.OPEN[s],
+      explain: `The ${GT.ORD[s]} string is <b>${GT.OPEN[s]}</b>. From thickest to thinnest the open strings are <b>E A D G B E</b> — “Eddie Ate Dynamite, Good Bye Eddie”.`,
+      reveal: { kind: 'fretboard', from: 1, to: 3, string: s, dots: GT.OPEN.map((nm, i) => ({ s: i, f: 0, label: nm, cls: i === s ? 'good' : null })) },
+      audioAfter: GT.pluck([[s, 0]]),
+    };
+  });
+
+  def('guitar-note', 'guitar', 'eye', 1, 3, (rng, d) => {
+    const s = d <= 1 ? rng.int(0, 1) : rng.int(0, 5);
+    const maxF = d <= 1 ? 3 : d === 2 ? 5 : 12;
+    let f = rng.int(d >= 3 ? 1 : 0, maxF);
+    if (d <= 1) while (T.IS_BLACK[GT.pcAt(s, f)]) f = rng.int(0, maxF);
+    const p = GT.pcAt(s, f);
+    const cands = [p + 1, p - 1, p + 2, p - 2, GT.pcAt(s, 0), GT.pcAt(s === 5 ? 4 : s + 1, f), p + 5].map((x) => mod(x, 12)).filter((x) => x !== p && (d > 1 || !T.IS_BLACK[x]));
+    const walk = [];
+    for (let k = 0; k <= f; k++) walk.push(T.PC_SHARP[GT.pcAt(s, k)]);
+    const to = d <= 1 ? 4 : d === 2 ? 5 : 12;
+    return {
+      key: 'guitar-note:' + s + ':' + f,
+      prompt: 'Which note is this on the guitar?',
+      sub: `${GT.ORD[s]} string${f === 0 ? ', played open' : ', fret ' + f}. The thickest string is at the bottom.`,
+      visual: { kind: 'fretboard', from: 1, to, string: s, dots: [{ s, f }] },
+      input: choice(rng, T.PC_BOTH[p], rng.shuffle(cands).map((x) => T.PC_BOTH[x])),
+      answerText: T.PC_BOTH[p],
+      explain: `The open ${GT.ORD[s]} string is ${GT.OPEN[s]}, and every fret raises the note one semitone` +
+        (f === 0 ? ` — played open, it is simply <b>${GT.OPEN[s]}</b>.` : f <= 6 ? `: ${walk.join(' → ')}. Fret ${f} is <b>${T.PC_BOTH[p]}</b>.` : `. Shortcut: fret 12 is the open note again, one octave up — count from there. Fret ${f} is <b>${T.PC_BOTH[p]}</b>.`),
+      reveal: { kind: 'fretboard', from: 1, to, string: s, dots: [{ s, f, label: T.PC_SHARP[p], cls: 'good' }] },
+      audioAfter: GT.pluck([[s, f]]),
+    };
+  });
+
+  def('guitar-chord-id', 'guitar', 'eye', 1, 3, (rng, d) => {
+    const P1 = ['C:maj', 'A:maj', 'G:maj', 'E:maj', 'D:maj', 'A:min', 'E:min', 'D:min'];
+    const P2 = P1.concat(['F:maj', 'E:dom7', 'A:dom7', 'D:dom7', 'G:dom7', 'B:dom7', 'A:min7', 'E:min7', 'D:min7']);
+    const P3 = ['B:min', 'F#:min', 'C:maj7', 'A:maj7', 'D:maj7', 'G:maj7', 'F:maj7', 'E:maj7', 'D:sus4', 'D:sus2', 'A:sus4', 'A:sus2', 'E:sus4', 'C:add9', 'B:dom7'];
+    const pool = d <= 1 ? P1 : d === 2 ? P2 : P3;
+    const sh = GT.shapeById(rng.pick(pool));
+    const lab = (x) => chordLabel(x.root, x.q);
+    const all = (d >= 3 ? P2.concat(P3) : pool).map(GT.shapeById).filter((x) => x.id !== sh.id);
+    const sameRoot = rng.shuffle(all.filter((x) => x.rootPc === sh.rootPc)).slice(0, 2);
+    const ds = sameRoot.concat(rng.shuffle(all.filter((x) => x.rootPc !== sh.rootPc))).map(lab);
+    const names = GT.shapeNotes(sh);
+    return {
+      key: 'guitar-chord:' + sh.id,
+      prompt: 'Which guitar chord is this?',
+      sub: 'Thickest string on the left. Dots are fingers, ○ is an open string, × is not played.',
+      visual: { kind: 'chordbox', frets: sh.frets },
+      input: choice(rng, lab(sh), ds),
+      answerText: lab(sh),
+      explain: `Read the strings from thickest to thinnest: <b>${GT.shapeText(sh.frets)}</b>. That plays ${names.filter(Boolean).join(' – ')} — only the notes ${spell(T.chordNotes(sh.root, sh.q))}, which is <b>${lab(sh)}</b> (${CHORDS[sh.q].formula}).`,
+      reveal: { kind: 'chordbox', frets: sh.frets, notes: names },
+      audioAfter: GT.strum(sh.frets),
+    };
+  });
+
+  def('guitar-find', 'guitar', 'build', 1, 2, (rng, d) => {
+    const to = d <= 1 ? 3 : 5;
+    const p = d <= 1 ? rng.pick([0, 2, 4, 5, 7, 9, 11]) : rng.int(0, 11);
+    const spots = GT.positions(p, 0, to);
+    return {
+      key: 'guitar-find:' + p,
+      prompt: `Tap any spot on the fretboard that plays <b>${T.PC_BOTH[p]}</b>.`,
+      sub: 'Open strings count too — tap to the left of the nut. Thickest string is at the bottom.',
+      input: { kind: 'fret', from: 1, to, targetPc: p },
+      answerText: spots.map(GT.where).join(', '),
+      explain: `<b>${T.PC_BOTH[p]}</b> lives at: ${spots.map(GT.where).join(' · ')}. Start from an open string (E A D G B E) and count up one semitone per fret.`,
+      audioAfter: GT.pluck([[spots[0].s, spots[0].f]]),
+    };
+  });
+
+  // =====================================================================
+  // Hints — a nudge, not the answer. Using one gives up the speed bonus.
+  // =====================================================================
+  const HINTS = {
+    'ear-direction': () => 'Hum the first note, then the second. Did your voice go up or down?',
+    'ear-interval': (q) => (q.diff <= 2
+      ? 'Small steps sound like next-door neighbours. A 5th sounds open and hollow. An octave sounds like the same note, higher.'
+      : 'Sing the bottom note and climb a major scale in your head until you reach the top note — which step did you land on?'),
+    'ear-chord': (q) => (q.diff <= 2
+      ? 'Major sounds bright and happy, minor sounds darker and sad. Listen to the middle note of the slow version.'
+      : 'Count the notes in the slow version: three notes is a triad, four is a 7th chord. Then ask: bright or dark?'),
+    'ear-scale': () => 'Listen to the third note. Bright means a major-type scale, dark means a minor-type scale. Then listen for anything unusual near the top.',
+    'ear-degree': () => 'Hum the last note, then walk down step by step until you feel “home”. Count the steps you took.',
+    'ear-progression': () => 'Follow the lowest note of each chord. Does it step up a little, or leap?',
+    'piano-note': () => 'C sits just left of every group of two black keys; F sits just left of every group of three. Count letters from there.',
+    'read-note': (q) => (q.visual.clef === 'treble'
+      ? 'Treble clef lines, bottom to top: E G B D F. Spaces: F A C E. Count up or down from the nearest one you know.'
+      : 'Bass clef lines, bottom to top: G B D F A. Spaces: A C E G. Count up or down from the nearest one you know.'),
+    'key-sig': (q) => (q.visual.sig > 0 ? 'For sharps: find the last sharp (the one furthest right) and go up one semitone.'
+      : q.visual.sig < -1 ? 'For flats: the second-to-last flat is the name of the key.'
+        : q.visual.sig === -1 ? 'One flat is a key you simply memorise — it starts with F.'
+          : 'No sharps and no flats: the all-white-keys key.') + (/minor/.test(q.prompt) ? ' Then go down 3 semitones for the relative minor.' : ''),
+    'piano-chord': () => 'Start from the lowest note and count semitones up to the next note: 4 means major, 3 means minor.',
+    'piano-interval': () => 'Count every key from one to the other — black and white — not including the first.',
+    'staff-interval': () => 'Count the lines and spaces from the lower note to the upper note, including both. That gives the number (3rd, 5th…).',
+    semitones: () => 'Picture a keyboard starting on C and count keys: C→D is 2, C→E is 4, C→G is 7, C→C is 12.',
+    'interval-math': (q) => (q.diff <= 1
+      ? 'A half step is the very next key. A whole step skips one. Careful: E–F and B–C have no black key between them.'
+      : 'First count letter names to find the letter, then check the semitones to decide sharp, flat or natural.'),
+    'scale-degree': () => 'Walk up the scale using the pattern whole, whole, half, whole, whole, whole, half (for major).',
+    'chord-in-key': () => 'Write out the scale, then stack every other note. In a major key I, IV and V are major; ii, iii and vi are minor.',
+    'relative-key': () => 'The relative minor starts 3 semitones below the major’s home note (or on the major scale’s 6th note).',
+    'chord-tone': () => 'A major 3rd is 4 semitones above the root, a minor 3rd is 3. The 5th is 7 semitones up.',
+    'chord-notes': () => 'Triads skip letters: root, skip one, next, skip one, next. Then check the middle note: 4 semitones up for major, 3 for minor.',
+    'sig-count': () => 'Sharp keys go C (0), G (1), D (2), A (3), E (4), B (5). Flat keys go F (1), B♭ (2), E♭ (3), A♭ (4), D♭ (5).',
+    'chord-formula': () => 'Major is 1 3 5. Flatten the 3 for minor. Flatten the 5 as well for diminished. Raise the 5 for augmented.',
+    'mode-char': () => 'White keys only: C Ionian, D Dorian, E Phrygian, F Lydian, G Mixolydian, A Aeolian, B Locrian.',
+    'build-interval': () => 'Count up one key at a time from the marked key — black keys count too.',
+    'build-chord': (q) => (q.input.targetPcs.length <= 3
+      ? 'Start on the root. Major: up 4 semitones, then 3 more. Minor: up 3, then 4.'
+      : 'Build the triad first, then add the top note: a major 7th is 1 semitone below the octave, a ♭7 is 2 below.'),
+    'build-scale': () => 'From the root, a major scale goes whole, whole, half, whole, whole, whole, half. Natural minor: whole, half, whole, whole, half, whole, whole.',
+    'guitar-string': () => 'Thickest to thinnest: Eddie Ate Dynamite, Good Bye Eddie.',
+    'guitar-note': () => 'Name the open string first (E A D G B E from the bottom), then count one semitone per fret.',
+    'guitar-chord-id': () => 'Work out the note on each played string, then see which three or four different notes you end up with.',
+    'guitar-find': () => 'Pick a string, say its open note, and count up the musical alphabet one fret at a time.',
+  };
+
+  // =====================================================================
   // Assembly
   // =====================================================================
   const byId = {};
   GENS.forEach((g) => { byId[g.id] = g; });
 
-  function make(gen, rng, d) {
+  function make(gen, rng, d, o) {
     const dd = clamp(d, gen.min, gen.max);
-    const q = gen.make(rng, dd);
+    const q = gen.make(rng, dd, o || {});
     q.gen = gen.id; q.skill = gen.skill; q.sense = gen.sense; q.diff = dd;
+    if (!q.hint && HINTS[gen.id]) q.hint = HINTS[gen.id](q);
     return q;
   }
 
@@ -693,25 +878,48 @@
     { id: 'keys', name: 'Keys', icon: '♯', blurb: 'Key signatures and relatives' },
     { id: 'reading', name: 'Reading', icon: '𝄚', blurb: 'Notes on the staff and keyboard' },
     { id: 'harmony', name: 'Harmony', icon: 'V', blurb: 'How chords work inside a key' },
+    { id: 'guitar', name: 'Guitar', icon: '🎸', blurb: 'Strings, frets and open chords' },
   ];
   const SENSES = { ear: 'Ear', eye: 'Eye', brain: 'Brain', build: 'Build' };
 
   const TIERS = {
     beginner: { name: 'Beginner', blurb: 'New to theory, or it’s been a while', range: [1, 2],
-      slots: [['eye', 1], ['ear', 1], ['brain', 1], ['eye', 1], ['ear', 2], ['build', 1], ['brain', 2], ['ear', 1]] },
+      slots: [['eye', 1], ['ear', 1], ['brain', 1], ['eye', 1], ['ear', 1], ['build', 1], ['brain', 1], ['ear', 2]] },
     intermediate: { name: 'Intermediate', blurb: 'I know my scales and basic chords', range: [2, 3],
       slots: [['eye', 2], ['ear', 2], ['brain', 2], ['eye', 3], ['ear', 3], ['build', 3], ['brain', 3], ['ear', 3]] },
     advanced: { name: 'Advanced', blurb: 'Modes, 7th chords, bring it on', range: [3, 5],
       slots: [['eye', 3], ['ear', 3], ['brain', 3], ['eye', 4], ['ear', 4], ['build', 4], ['brain', 4], ['ear', 5]] },
   };
 
+  // Guitar questions can be switched off in settings (they stay available in the Guitar track itself).
+  let guitarOn = true;
+  const setGuitar = (v) => { guitarOn = !!v; };
   function pickGen(rng, sense, d, used, skill) {
-    let c = GENS.filter((g) => (!sense || g.sense === sense) && (!skill || g.skill === skill) && g.min <= d && g.max >= d);
+    const ok = (g) => (!sense || g.sense === sense) && (skill ? g.skill === skill : guitarOn || g.skill !== 'guitar');
+    let c = GENS.filter((g) => ok(g) && g.min <= d && g.max >= d);
     const fresh = c.filter((g) => !used || !used.has(g.id));
     if (fresh.length) c = fresh;
-    if (!c.length) c = GENS.filter((g) => (!sense || g.sense === sense) && (!skill || g.skill === skill));
+    if (!c.length) c = GENS.filter(ok);
     if (!c.length) c = GENS;
     return rng.pick(c);
+  }
+
+  // A lesson's quiz: spec is [[generatorId, difficulty, options, count], ...]
+  function lessonQuiz(rng, spec) {
+    const out = [];
+    const seen = new Set();
+    spec.forEach(([id, d, o, count]) => {
+      for (let i = 0; i < (count || 1); i++) {
+        let q;
+        for (let tries = 0; tries < 12; tries++) {
+          q = make(byId[id], rng, d, o);
+          if (!seen.has(q.gen + '|' + q.prompt + '|' + q.answerText)) break;
+        }
+        seen.add(q.gen + '|' + q.prompt + '|' + q.answerText);
+        out.push(q);
+      }
+    });
+    return out;
   }
 
   // The same eight questions for everyone on a given day and tier.
@@ -721,6 +929,8 @@
     return TIERS[tier].slots.map(([sense, d]) => {
       const g = pickGen(rng, sense, d, used);
       used.add(g.id);
+      // at most one guitar question per set, so the daily stays balanced
+      if (g.skill === 'guitar') GENS.forEach((x) => { if (x.skill === 'guitar') used.add(x.id); });
       return make(g, rng, d);
     });
   }
@@ -753,5 +963,5 @@
     return make(g, rng, d);
   }
 
-  root.Questions = { GENS, byId, make, daily, practice, survival, SKILLS, SENSES, TIERS, bestRoot, chordLabel };
+  root.Questions = { GENS, byId, make, daily, practice, survival, lessonQuiz, setGuitar, SKILLS, SENSES, TIERS, bestRoot, chordLabel };
 })(typeof window !== 'undefined' ? window : globalThis);

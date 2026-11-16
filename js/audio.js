@@ -49,6 +49,33 @@
     return { out, oscs, end: end + 0.4 };
   }
 
+  // A plucked-string voice for guitar sounds: bright attack, quick fade.
+  function pluckVoice(m, t, dur, vel) {
+    const f = freq(m);
+    const out = ctx.createGain();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(Math.min(8000, f * 9), t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(500, f * 1.6), t + 0.35);
+    const v = vel * Math.min(1, 0.6 + 110 / f);
+    const end = t + dur;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(v, t + 0.004);
+    out.gain.exponentialRampToValueAtTime(v * 0.3, t + 0.22);
+    out.gain.exponentialRampToValueAtTime(0.0001, end);
+    const oscs = [];
+    [[1, 'sawtooth', 0.34], [1, 'triangle', 0.5], [2.001, 'sine', 0.12]].forEach(([mult, type, g]) => {
+      const o = ctx.createOscillator();
+      const og = ctx.createGain();
+      o.type = type; o.frequency.value = f * mult; og.gain.value = g;
+      o.connect(og); og.connect(lp);
+      o.start(t); o.stop(end + 0.05);
+      oscs.push(o);
+    });
+    lp.connect(out); out.connect(master);
+    return { out, oscs, end: end + 0.05 };
+  }
+
   function stop() {
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -70,8 +97,9 @@
     if (!opts || !opts.layer) stop();
     const t0 = ctx.currentTime + 0.06;
     events.forEach((ev) => {
-      const vel = 0.5 / Math.sqrt(ev.midis.length);
-      ev.midis.forEach((m) => live.push(voice(m, t0 + ev.at, ev.dur, vel)));
+      const pl = ev.voice === 'pluck';
+      const vel = (pl ? 0.3 : 0.5) / Math.sqrt(ev.midis.length);
+      ev.midis.forEach((m) => live.push((pl ? pluckVoice : voice)(m, t0 + ev.at, ev.dur, vel)));
     });
     return len;
   }

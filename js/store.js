@@ -7,9 +7,11 @@
 
   const fresh = () => ({
     v: 1, tier: null, sound: true, xp: 0,
+    guitar: true,      // include guitar questions outside the Guitar track
+    keyLabels: false,  // print note names on the tap-the-keyboard rounds
     streak: { count: 0, best: 0, last: null },
-    daily: {}, skills: {}, items: {}, ach: {},
-    counters: { correct: 0, answered: 0, ear: 0, build: 0, fast: 0, bestCombo: 0, dailies: 0, perfects: 0, deepBest: 0, deepRound: 0 },
+    daily: {}, skills: {}, items: {}, ach: {}, lessons: {},
+    counters: { correct: 0, answered: 0, ear: 0, build: 0, guitar: 0, fast: 0, bestCombo: 0, dailies: 0, perfects: 0, deepBest: 0, deepRound: 0, lessons: 0, hints: 0 },
     survivalBest: 0,
   });
 
@@ -85,6 +87,7 @@
       c.correct++;
       if (q.sense === 'ear') c.ear++;
       if (q.sense === 'build') c.build++;
+      if (q.skill === 'guitar') c.guitar++;
       if (seconds < 3) c.fast++;
     }
     c.bestCombo = Math.max(c.bestCombo, combo || 0);
@@ -94,6 +97,10 @@
   // ---------- achievements ----------
   const ACH = [
     { id: 'first', icon: '🎬', name: 'Opening Night', desc: 'Finish your first Daily Set', test: (s) => s.counters.dailies >= 1 },
+    { id: 'lesson1', icon: '📖', name: 'First Lesson', desc: 'Complete a lesson in the Learn path', test: (s) => s.counters.lessons >= 1 },
+    { id: 'lesson6', icon: '🎒', name: 'Good Student', desc: 'Complete 6 lessons', test: (s) => s.counters.lessons >= 6 },
+    { id: 'lessonAll', icon: '🎓', name: 'Graduate', desc: 'Complete every lesson', test: (s) => s.counters.lessons >= 12 },
+    { id: 'guitar25', icon: '🎸', name: 'Six-String Starter', desc: 'Answer 25 guitar questions correctly', test: (s) => s.counters.guitar >= 25 },
     { id: 'perfect', icon: '🌹', name: 'Standing Ovation', desc: 'Get every question right in a Daily Set', test: (s) => s.counters.perfects >= 1 },
     { id: 'streak3', icon: '🔥', name: 'Warming Up', desc: 'Play 3 days in a row', test: (s) => s.streak.best >= 3 },
     { id: 'streak7', icon: '📅', name: 'Week-long Residency', desc: 'Play 7 days in a row', test: (s) => s.streak.best >= 7 },
@@ -156,6 +163,15 @@
     save();
     return { already: false, streak: st.streak.count };
   }
+  function finishLesson(id, correct, total) {
+    const st = load();
+    const prev = st.lessons[id];
+    const first = !prev;
+    st.lessons[id] = { done: true, best: Math.max(prev ? prev.best : 0, correct), total };
+    st.counters.lessons = Object.keys(st.lessons).length;
+    save();
+    return { first };
+  }
   function recordSurvival(n) {
     const st = load();
     const best = n > st.survivalBest;
@@ -165,7 +181,7 @@
 
   root.Store = {
     load, save, reset, today, dateStr, dayNumber, msToMidnight, levelInfo, skillInfo, liveStreak,
-    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, recordSurvival, ACH,
+    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, finishLesson, recordSurvival, ACH,
     todayResult: () => load().daily[today()] || null,
   };
 })(window);

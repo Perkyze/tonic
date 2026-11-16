@@ -3,7 +3,9 @@
 <title>Tonic — generator fuzz test</title>
 <pre id="out">running…</pre>
 <script src="js/theory.js"></script>
+<script src="js/guitar.js"></script>
 <script src="js/questions.js"></script>
+<script src="js/lessons.js"></script>
 <script src="js/deepcut.js"></script>
 <script>
 /* Runs every generator thousands of times and checks the questions are well formed:
@@ -33,10 +35,16 @@
           if (inp.layout !== 'letters' && labels.length < 3 && !(g.id === 'ear-chord' || g.id === 'ear-scale')) fail(g.id, d, 'only ' + labels.length + ' options', q);
           if (labels.some((l) => /undefined|NaN/.test(l) || !l)) fail(g.id, d, 'bad label ' + labels.join(' / '), q);
           if (g.id !== 'chord-formula' && labels.some((l) => /♯♯|♭♭|×/.test(l))) fail(g.id, d, 'double accidental in options ' + labels.join(' / '), q);
+        } else if (inp.kind === 'fret') {
+          if (!Guitar.positions(inp.targetPc, 0, inp.to).length) fail(g.id, d, 'note not reachable', q);
         } else {
           if (inp.exact) { if (!inp.targetMidis.every((m) => m >= inp.lo && m <= inp.hi)) fail(g.id, d, 'target off keyboard', q); }
           else if (new Set(inp.targetPcs).size !== inp.targetPcs.length) fail(g.id, d, 'dup target pcs', q);
         }
+        if (!q.hint) fail(g.id, d, 'no hint', q);
+        [q.visual, q.reveal].forEach((v) => {
+          if (v && v.kind === 'fretboard') (v.dots || []).forEach((dd) => { if (dd.f !== 0 && (dd.f < v.from || dd.f > v.to)) fail(g.id, d, 'dot off fretboard', q); });
+        });
         const evs = (q.audio || []).concat(q.audioAfter || []);
         evs.forEach((ev) => ev.midis.forEach((m) => { if (!(m >= 33 && m <= 96)) fail(g.id, d, 'midi out of range ' + m, q); }));
         [q.visual, q.reveal].forEach((v) => {
@@ -57,6 +65,7 @@
       try {
         const qs = Q.daily(ds, tier);
         if (qs.length !== 8) fail('daily', tier, 'length ' + qs.length);
+        if (qs.filter((q) => q.skill === 'guitar').length > 1) fail('daily', tier, 'more than one guitar question');
         if (new Set(qs.map((q) => q.gen)).size < 7) fail('daily', tier, 'repeated generators: ' + qs.map((q) => q.gen).join(','));
         const again = Q.daily(ds, tier);
         if (JSON.stringify(again.map((q) => q.key + q.answerText)) !== JSON.stringify(qs.map((q) => q.key + q.answerText))) fail('daily', tier, 'not deterministic');
@@ -67,7 +76,41 @@
       } catch (e) { fail('daily', tier, 'threw ' + e.message + ' ' + (e.stack || '').split('\n')[1]); }
     }
   });
-  const out = { total, dailies, errors: errs, variety: stats };
+  // guitar shapes must contain exactly the notes of the chord they claim to be
+  Guitar.SHAPES.forEach((sh) => {
+    const want = new Set(T.chordPcs(sh.rootPc, sh.q));
+    const got = new Set(sh.frets.map((f, s) => (f < 0 ? null : Guitar.pcAt(s, f))).filter((x) => x !== null));
+    if (want.size !== got.size || [...want].some((p) => !got.has(p))) fail('guitar-shape', 0, sh.id + ' plays the wrong notes');
+    const lowest = sh.frets.findIndex((f) => f >= 0);
+    if (Guitar.pcAt(lowest, sh.frets[lowest]) !== sh.rootPc) fail('guitar-shape', 0, sh.id + ' does not have its root in the bass');
+  });
+  // lessons: every quiz builds, every card's picture is in range
+  let lessonQs = 0;
+  Lessons.LESSONS.forEach((les) => {
+    for (let i = 0; i < 60; i++) {
+      try {
+        const qs = Q.lessonQuiz(T.makeRng(les.id + i), les.quiz);
+        if (qs.length !== 5) fail('lesson', 0, les.id + ' quiz has ' + qs.length + ' questions');
+        lessonQs += qs.length;
+      } catch (e) { fail('lesson', 0, les.id + ' quiz threw ' + e.message); }
+    }
+    les.cards.forEach((c, i) => {
+      if (!c.h || !c.p) fail('lesson', 0, les.id + ' card ' + i + ' missing text');
+      const vs = !c.v ? [] : c.v.kind === 'row' ? c.v.items.map((it) => it.v) : [c.v];
+      vs.forEach((v) => {
+        if (v.kind === 'piano') v.marks.forEach((m) => { if (m < v.lo || m > v.hi) fail('lesson', 0, les.id + ' card ' + i + ' mark off keyboard'); });
+        if (v.kind === 'fretboard') (v.dots || []).forEach((dd) => { if (dd.f !== 0 && (dd.f < v.from || dd.f > v.to)) fail('lesson', 0, les.id + ' card ' + i + ' dot off fretboard'); });
+      });
+      (c.a || []).forEach((ev) => ev.midis.forEach((m) => { if (!(m >= 33 && m <= 96)) fail('lesson', 0, les.id + ' card ' + i + ' midi ' + m); }));
+    });
+  });
+  // with guitar switched off, no guitar question may reach the daily set
+  Q.setGuitar(false);
+  for (let day = 1; day <= 60; day++) ['beginner', 'intermediate', 'advanced'].forEach((tier) => {
+    if (Q.daily('2028-01-' + day, tier).some((q) => q.skill === 'guitar')) fail('daily', tier, 'guitar question while guitar is off');
+  });
+  Q.setGuitar(true);
+  const out = { total, dailies, lessonQs, shapes: Guitar.SHAPES.length, errors: errs, variety: stats };
   window.__fuzz = out;
   document.getElementById('out').textContent = JSON.stringify(out, null, 1);
 })();

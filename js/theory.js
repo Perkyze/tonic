@@ -115,7 +115,7 @@
     majpent:    { name: 'major pentatonic', iv: ['P1', 'M2', 'M3', 'P5', 'M6'],             feel: 'the major scale minus the 4th and 7th — no clashes' },
     minpent:    { name: 'minor pentatonic', iv: ['P1', 'm3', 'P4', 'P5', 'm7'],             feel: 'five notes, the backbone of rock and blues solos' },
     blues:      { name: 'blues',            iv: ['P1', 'm3', 'P4', 'd5', 'P5', 'm7'],       feel: 'minor pentatonic plus the gritty ♭5 “blue note”' },
-    wholetone:  { name: 'whole tone',       iv: ['P1', 'M2', 'M3', 'A4', 'A5', 'm7'],       feel: 'all whole steps — weightless and dreamlike' },
+    wholetone:  { name: 'whole tone',       iv: ['P1', 'M2', 'M3', 'd5', 'm6', 'm7'],       feel: 'all whole steps — weightless and dreamlike' },
   };
   const scaleNotes = (rootNote, s) => SCALES[s].iv.map((iv) => up(rootNote, iv));
   const scalePcs = (rootPc, s) => SCALES[s].iv.map((iv) => mod(rootPc + IV[iv][1], 12));

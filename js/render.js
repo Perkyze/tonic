@@ -49,10 +49,10 @@
         } else if (st && st !== 'sel') {
           const cx = xOf[m] + (black ? BW : WW) / 2;
           el('circle', { cx, cy: black ? BH - 13 : WH - 15, r: black ? 3.5 : 4.5, class: 'kdot d-' + st }, gL);
-        } else if (opts.hintC && m % 12 === 0 && !st) {
-          // a quiet landmark so you can find your way around
-          const t = el('text', { x: xOf[m] + WW / 2, y: WH - 8, class: 'khint', 'text-anchor': 'middle' }, gL);
-          t.textContent = 'C';
+        } else if (!black && (opts.labelAll || (opts.hintC && m % 12 === 0))) {
+          // quiet landmarks so you can find your way around
+          const t = el('text', { x: xOf[m] + WW / 2, y: WH - 8, class: 'khint' + (st ? ' on-sel' : ''), 'text-anchor': 'middle' }, gL);
+          t.textContent = T.PC_SHARP[m % 12];
         }
       }
     };
@@ -141,10 +141,107 @@
     return { el: svg };
   }
 
+  // ---------- guitar chord box (neck upright, thickest string on the left) ----------
+  function chordBox(frets, opts) {
+    opts = opts || {};
+    const L = 24, SPX = 17, TOPY = 32, FH = 23, NF = 4;
+    const W = L * 2 + 5 * SPX, Hh = TOPY + NF * FH + (opts.notes ? 28 : 12);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chordbox', role: 'img', 'aria-label': 'Guitar chord diagram: ' + frets.map((f) => (f < 0 ? 'x' : f)).join(' ') });
+    el('rect', { x: L - 1.5, y: TOPY - 5, width: 5 * SPX + 3, height: 5.5, rx: 1.5, class: 'cb-nut' }, svg);
+    for (let k = 1; k <= NF; k++) el('line', { x1: L, x2: L + 5 * SPX, y1: TOPY + k * FH, y2: TOPY + k * FH, class: 'cb-fret' }, svg);
+    for (let i = 0; i < 6; i++) el('line', { x1: L + i * SPX, x2: L + i * SPX, y1: TOPY, y2: TOPY + NF * FH, class: 'cb-string', 'stroke-width': 2 - i * 0.2 }, svg);
+    frets.forEach((f, i) => {
+      const x = L + i * SPX;
+      if (f < 0) { const t = el('text', { x, y: TOPY - 10, class: 'cb-mute', 'text-anchor': 'middle' }, svg); t.textContent = '×'; }
+      else if (f === 0) el('circle', { cx: x, cy: TOPY - 15, r: 4.2, class: 'cb-open' }, svg);
+      else el('circle', { cx: x, cy: TOPY + (f - 0.5) * FH, r: 6.8, class: 'cb-dot' }, svg);
+      if (opts.notes && opts.notes[i]) {
+        const t = el('text', { x, y: TOPY + NF * FH + 18, class: 'cb-note', 'text-anchor': 'middle' }, svg);
+        t.textContent = opts.notes[i];
+      }
+    });
+    return { el: svg };
+  }
+
+  // ---------- fretboard (neck lying down, thickest string at the bottom) ----------
+  // opts: from/to (frets shown), dots: [{s, f, label, cls}], string (highlight one), onFret(s, f)
+  function fretboard(opts) {
+    const from = opts.from || 1, to = opts.to || 5;
+    const n = to - from + 1;
+    const fw = n > 7 ? 30 : 46;
+    const hasOpen = from === 1;
+    const X0 = hasOpen ? 42 : 16, SPY = 19, TOPY = 18;
+    const W = X0 + n * fw + 12, Hh = TOPY + 5 * SPY + 32;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'fretboard' + (opts.onFret ? ' fb-live' : '') + (n > 7 ? ' fb-long' : ''), role: opts.onFret ? 'group' : 'img', 'aria-label': 'Guitar fretboard' });
+    el('rect', { x: X0, y: TOPY - 9, width: n * fw, height: 5 * SPY + 18, rx: 3, class: 'fb-board' }, svg);
+    const xOf = (f) => (f === 0 ? X0 - 20 : X0 + (f - from + 0.5) * fw);
+    const yOf = (s) => TOPY + (5 - s) * SPY;
+    for (let f = from; f <= to; f++) {
+      if ([3, 5, 7, 9].includes(f)) el('circle', { cx: xOf(f), cy: TOPY + 2.5 * SPY, r: 5, class: 'fb-inlay' }, svg);
+      if (f === 12) { el('circle', { cx: xOf(f), cy: TOPY + 1.5 * SPY, r: 5, class: 'fb-inlay' }, svg); el('circle', { cx: xOf(f), cy: TOPY + 3.5 * SPY, r: 5, class: 'fb-inlay' }, svg); }
+      if (n <= 7 || [3, 5, 7, 9, 12].includes(f)) {
+        const t = el('text', { x: xOf(f), y: Hh - 6, class: 'fb-num', 'text-anchor': 'middle' }, svg);
+        t.textContent = f;
+      }
+    }
+    for (let k = 0; k <= n; k++) {
+      const x = X0 + k * fw;
+      el('line', { x1: x, x2: x, y1: TOPY - 9, y2: TOPY + 5 * SPY + 9, class: k === 0 && hasOpen ? 'fb-nut' : 'fb-fret' }, svg);
+    }
+    for (let s = 0; s < 6; s++) {
+      el('line', { x1: hasOpen ? X0 - 34 : X0, x2: X0 + n * fw, y1: yOf(s), y2: yOf(s), class: 'fb-string' + (opts.string === s ? ' hl' : ''), 'stroke-width': 2.7 - s * 0.34 }, svg);
+    }
+    const gD = el('g', {}, svg);
+    const api = { el: svg };
+    api.set = function (dots) {
+      gD.textContent = '';
+      (dots || []).forEach((d) => {
+        if (d.f !== 0 && (d.f < from || d.f > to)) return;
+        if (d.f === 0 && !hasOpen) return;
+        const r = fw < 40 ? 7.2 : 8.2;
+        el('circle', { cx: xOf(d.f), cy: yOf(d.s), r, class: 'fdot' + (d.cls ? ' d-' + d.cls : '') + (d.f === 0 ? ' open' : '') }, gD);
+        if (d.label) {
+          const t = el('text', { x: xOf(d.f), y: yOf(d.s) + 3, class: 'flabel' + (d.cls ? ' l-' + d.cls : ''), 'text-anchor': 'middle' }, gD);
+          t.textContent = d.label;
+        }
+      });
+    };
+    api.set(opts.dots);
+    if (opts.onFret) {
+      const gH = el('g', {}, svg);
+      for (let s = 0; s < 6; s++) {
+        for (let f = hasOpen ? 0 : from; f <= to; f++) {
+          if (f !== 0 && f < from) continue;
+          const x = f === 0 ? X0 - 36 : X0 + (f - from) * fw;
+          el('rect', { x, y: yOf(s) - SPY / 2, width: f === 0 ? 36 : fw, height: SPY, class: 'fb-hit', 'data-s': s, 'data-f': f }, gH);
+        }
+      }
+      svg.addEventListener('pointerdown', (e) => {
+        const t = e.target;
+        if (t && t.getAttribute && t.getAttribute('data-s') !== null) { e.preventDefault(); opts.onFret(+t.getAttribute('data-s'), +t.getAttribute('data-f')); }
+      });
+    }
+    return api;
+  }
+
   function visual(v, extra) {
     if (!v) return null;
     if (v.kind === 'piano') return piano(Object.assign({}, v, extra || {})).el;
     if (v.kind === 'staff') return staff(v).el;
+    if (v.kind === 'chordbox') return chordBox(v.frets, v).el;
+    if (v.kind === 'fretboard') return fretboard(v).el;
+    if (v.kind === 'row') {
+      const d = document.createElement('div');
+      d.className = 'vrow';
+      v.items.forEach((it) => {
+        const fig = document.createElement('figure');
+        fig.className = 'f-' + it.v.kind;
+        fig.appendChild(visual(it.v));
+        if (it.cap) { const c = document.createElement('figcaption'); c.textContent = it.cap; fig.appendChild(c); }
+        d.appendChild(fig);
+      });
+      return d;
+    }
     if (v.kind === 'text') {
       const d = document.createElement('div');
       d.className = 'bigtext';
@@ -154,5 +251,5 @@
     return null;
   }
 
-  root.Render = { piano, staff, visual };
+  root.Render = { piano, staff, chordBox, fretboard, visual };
 })(window);
