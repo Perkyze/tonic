@@ -163,6 +163,18 @@
     save();
     return { already: false, streak: st.streak.count };
   }
+  // The optional Deep Cut bonus, played after the day's set: add its points to today's record.
+  function addDailyDeep(total) {
+    const rec = load().daily[today()];
+    if (!rec) return null;
+    if (rec.dc === null || rec.dc === undefined) {
+      rec.dc = total;
+      rec.score += total;
+      delete rec.dcPicks;
+      save();
+    }
+    return rec;
+  }
   function finishLesson(id, correct, total) {
     const st = load();
     const prev = st.lessons[id];
@@ -181,7 +193,7 @@
 
   root.Store = {
     load, save, reset, today, dateStr, dayNumber, msToMidnight, levelInfo, skillInfo, liveStreak,
-    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, finishLesson, recordSurvival, ACH,
+    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, addDailyDeep, finishLesson, recordSurvival, ACH,
     todayResult: () => load().daily[today()] || null,
   };
 })(window);

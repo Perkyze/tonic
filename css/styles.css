@@ -561,6 +561,21 @@ button.chip:hover { border-color: var(--violet); }
 .tile strong { font: 800 20px var(--display); padding: 10px 4px; background: var(--bg-2); border-radius: 12px; font-variant-numeric: tabular-nums; }
 .t-mint { --t: var(--mint); } .t-yellow { --t: var(--yellow); } .t-orange { --t: var(--orange); } .t-sky { --t: var(--sky); } .t-violet { --t: var(--violet); }
 
+/* daily prize and the optional bonus round */
+.prize, .bonus { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 20px; }
+.prize { background: rgba(255, 210, 63, .1); border: 2px solid rgba(255, 210, 63, .6); }
+.prize-ico, .bonus-ico { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; flex: none; }
+.prize-ico { background: var(--yellow); box-shadow: 0 4px 0 var(--yellow-d); }
+.prize > div, .bonus > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.prize strong { font: 800 26px/1.1 var(--display); color: var(--yellow); }
+.prize span:not(.eyebrow), .bonus span:not(.eyebrow) { font-size: 13.5px; color: var(--mute); line-height: 1.35; }
+.bonus { background: var(--card); border: 2px dashed var(--line); }
+.bonus-ico { background: var(--card-2); }
+.bonus strong { font: 800 18px var(--display); }
+.bonus .ghost { flex: none; border-color: var(--violet); }
+@media (max-width: 420px) { .bonus { flex-wrap: wrap; } .bonus .ghost { flex-basis: 100%; } }
+.hero .next { margin-top: 2px; }
+
 /* feedback sheet: the explanation scrolls, the next step stays put */
 .sheet { overflow: hidden; }
 .sheet-body { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; }

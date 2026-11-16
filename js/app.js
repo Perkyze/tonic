@@ -231,16 +231,20 @@
         h('div', { class: 'eyebrow' }, `Daily Set #${n} · done`),
         h('div', { class: 'hero-score' }, num(done.score), h('small', null, ' pts')),
         marksRow(done.marks, done.dc),
-        h('div', { class: 'hero-row' },
-          h('button', { class: 'btn', onclick: () => share(done) }, 'Share result'),
-          h('p', { class: 'next' }, 'Next set in ', cd)));
+        // the Deep Cut is an optional bonus: offer it until it has been played
+        done.dc === null || done.dc === undefined
+          ? h('div', { class: 'hero-row' },
+            h('button', { class: 'btn', onclick: () => { A.unlock(); deepBonus(); } }, '💿 Play the bonus round'),
+            h('button', { class: 'ghost', onclick: () => share(done) }, 'Share'))
+          : h('div', { class: 'hero-row' }, h('button', { class: 'btn', onclick: () => share(done) }, 'Share result')),
+        h('p', { class: 'next' }, 'Next set in ', cd));
       hero.__dispose = () => clearInterval(iv);
     } else {
       hero = h('section', { class: 'hero' },
         h('div', { class: 'eyebrow' }, `Daily Set #${n} · ${dateLabel}`),
         h('h1', null, inProgress ? 'Your set is waiting.' : 'Today’s set is ready.'),
-        h('p', null, `8 questions + the Deep Cut encore · ${tier.name}`),
-        h('div', { class: 'marks' }, Array.from({ length: 8 }, (_, i) => h('i', { class: inProgress && i < st.progress.i ? (st.progress.marks[i] ? 'ok' : 'no') : '' })), h('span', { class: 'dcchip' }, '💿')),
+        h('p', null, `8 questions, a prize at the end, and an optional bonus round · ${tier.name}`),
+        h('div', { class: 'marks' }, Array.from({ length: 8 }, (_, i) => h('i', { class: inProgress && i < st.progress.i ? (st.progress.marks[i] ? 'ok' : 'no') : '' })), h('span', { class: 'dcchip' }, '🎁')),
         h('button', { class: 'btn big', onclick: () => { A.unlock(); startDaily(); } }, inProgress ? 'Continue' : 'Play today’s set'));
     }
 
@@ -288,7 +292,8 @@
     const st = S.load();
     const grid = res.marks.map((m) => (m ? '🟩' : '🟥')).join('');
     const url = /^https?:/.test(location.protocol) ? '\n' + location.origin + location.pathname : '';
-    return `Tonic #${S.dayNumber()} · ${Q.TIERS[res.tier || st.tier].name}\n${grid} 💿${res.dc}\n${num(res.score)} pts · 🔥${S.liveStreak()}${url}`;
+    const dc = res.dc === null || res.dc === undefined ? '' : ' 💿' + res.dc;
+    return `Tonic #${S.dayNumber()} · ${Q.TIERS[res.tier || st.tier].name}\n${grid}${dc}\n${num(res.score)} pts · 🔥${S.liveStreak()}${url}`;
   }
   function share(res) {
     const text = shareText(res);
@@ -462,7 +467,7 @@
   function advance(ses) {
     if (ses.mode === 'daily') {
       if (ses.i < ses.total) return runQuestion(ses, ses.qs[ses.i]);
-      return deepIntro(ses);
+      return results(ses); // the day is complete after question 8; the Deep Cut is a bonus offered from there
     }
     if (ses.mode === 'survival') {
       const last = ses.log.length ? ses.log[ses.log.length - 1].q.gen : null;
@@ -500,7 +505,7 @@
   }
   function saveProgress(ses) {
     const st = S.load();
-    st.progress = { date: ses.date, tier: ses.tier, i: ses.i, score: ses.score, combo: ses.combo, bestCombo: ses.bestCombo, marks: ses.marks.slice(), pts: ses.log.map((l) => l.pts), dcPicks: [] };
+    st.progress = { date: ses.date, tier: ses.tier, i: ses.i, score: ses.score, combo: ses.combo, bestCombo: ses.bestCombo, marks: ses.marks.slice(), pts: ses.log.map((l) => l.pts) };
     S.save();
   }
   function quit(ses) {
@@ -817,21 +822,44 @@
   // =====================================================================
   // Deep Cut
   // =====================================================================
-  function deepIntro(ses) {
-    const round = DC.make(T.makeRng('dc:' + ses.date + ':' + ses.tier), ses.tier);
+  // The Deep Cut is today's optional bonus round: it opens once the Daily Set is done
+  // and adds its points to the day's score. It can be played once per day.
+  function deepBonus() {
+    const rec = S.todayResult();
+    if (!rec || (rec.dc !== null && rec.dc !== undefined)) return home();
+    const round = DC.make(T.makeRng('dc:' + S.today() + ':' + rec.tier), rec.tier);
+    const start = () => runDeepCut(round, {
+      title: 'Deep Cut bonus', daily: true,
+      initial: rec.dcPicks,
+      onPick: (list) => { rec.dcPicks = list; S.save(); },
+      onDone: (total) => deepBonusResults(total),
+    });
+    if (rec.dcPicks && rec.dcPicks.length) return start(); // already under way: pick up where you left off
     show(h('main', { class: 'interlude' },
       h('div', { class: 'disc', 'aria-hidden': 'true' }, '💿'),
-      h('div', { class: 'eyebrow' }, 'Encore'),
+      h('div', { class: 'eyebrow' }, 'Bonus round'),
       h('h1', null, 'The Deep Cut'),
       h('p', null, 'One question, lots of right answers. You get ', h('b', null, 'three picks'), '.'),
-      h('p', null, 'Obvious answers score low. The more obscure your pick, the more it’s worth — up to 100 each. A wrong pick scores nothing.'),
-      h('button', { class: 'btn big', onclick: () => runDeepCut(round, {
-        title: 'Deep Cut', daily: true,
-        initial: (S.load().progress || {}).dcPicks,
-        onPick: (list) => { const st = S.load(); if (st.progress) { st.progress.dcPicks = list; S.save(); } },
-        onDone: (total, best) => { ses.dc = total; ses.dcBest = best; results(ses); },
-      }) }, 'Start the encore')));
-    onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); document.querySelector('.interlude .btn').click(); } };
+      h('p', null, 'Obvious answers score low. The more obscure your pick, the more it adds to today’s score — up to 100 each. A wrong pick adds nothing, and nothing is ever taken away.'),
+      h('button', { class: 'btn big', onclick: start }, 'Start the bonus round'),
+      h('button', { class: 'ghost', onclick: home }, 'Not now')));
+    onKey = (e) => { if (!onButton(e) && e.key === 'Enter') { e.preventDefault(); start(); } else if (e.key === 'Escape') home(); };
+  }
+  function deepBonusResults(total) {
+    const rec = S.addDailyDeep(total);
+    const xp = S.addXp(Math.round(total / 10));
+    const ach = S.checkAchievements();
+    if (total >= 200) { confetti(); A.sfx('win'); }
+    show(h('main', { class: 'results' },
+      emblem('💿', total >= 180 ? 'great' : total >= 90 ? 'good' : 'low'),
+      h('div', { class: 'eyebrow center' }, 'Deep Cut bonus'),
+      h('h1', { class: 'center' }, total >= 250 ? 'Niche royalty.' : total >= 180 ? 'Properly obscure.' : total >= 90 ? 'Decent digging.' : 'Stick to the hits?'),
+      bigScore(total, 'bonus points'),
+      h('div', { class: 'tiles' }, tile('yellow', 'Today’s total', num(rec.score)), tile('violet', 'XP earned', '+' + num(Math.round(total / 10)))),
+      xpBlock(xp), achBlock(ach),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn big', onclick: home }, 'Done for today'),
+        h('button', { class: 'ghost', onclick: () => share(rec) }, 'Share result'))));
   }
 
   function runDeepCut(round, opts) {
@@ -854,7 +882,7 @@
       lockBtn);
     const page = h('main', { class: 'play deep' },
       h('div', { class: 'hud' },
-        h('button', { class: 'x', onclick: () => { if (window.confirm(opts.daily ? 'Leave the encore? Your locked-in picks are saved.' : 'Leave this round?')) home(); }, 'aria-label': 'Quit' }, '✕'),
+        h('button', { class: 'x', onclick: () => { if (window.confirm(opts.daily ? 'Leave the bonus round? Your locked-in picks are saved.' : 'Leave this round?')) home(); }, 'aria-label': 'Quit' }, '✕'),
         h('div', { class: 'hud-title' }, '💿 ' + opts.title),
         totalEl),
       h('div', { class: 'qcard sense-deep' },
@@ -952,15 +980,17 @@
   // Results
   // =====================================================================
   function bigScore(n, sub) {
+    // Plain timers here, not later(): these run while the screen is still being built,
+    // and show() cancels everything registered with later() before it swaps screens.
     const v = h('span', null, '0');
-    later(() => countUp(v, n, 900), 150);
+    setTimeout(() => countUp(v, n, 900), 150);
     return h('div', { class: 'bigscore' }, v, h('small', null, sub));
   }
   function xpBlock(xp) {
     const a = xp.after;
     const fill = h('i', { style: { width: (xp.leveled ? 0 : Math.round(xp.before.pct * 100)) + '%' } });
-    later(() => { fill.style.width = Math.round(a.pct * 100) + '%'; }, 500);
-    if (xp.leveled) later(() => A.sfx('level'), 900);
+    setTimeout(() => { fill.style.width = Math.round(a.pct * 100) + '%'; }, 500);
+    if (xp.leveled) setTimeout(() => { if (fill.isConnected) A.sfx('level'); }, 900);
     return h('div', { class: 'xp' + (xp.leveled ? ' up' : '') },
       h('div', { class: 'xp-row' }, h('strong', null, xp.leveled ? `Level up! Lv ${a.level} · ${a.title}` : `Lv ${a.level} · ${a.title}`), h('span', null, `+${num(xp.gained)} XP`)),
       h('span', { class: 'bar' }, fill));
@@ -995,18 +1025,33 @@
     const fixedTile = ses.retryTotal ? tile('sky', '2nd try', `${ses.fixed}/${ses.retryTotal}`) : null;
     let title, score = ses.score, sub = 'points', xpGain, tiles, primary, icon, tone, starsN, lead = null, party = false;
     if (ses.mode === 'daily') {
-      score = ses.score + (ses.dc || 0);
-      const r = S.finishDaily({ score, marks: ses.marks.slice(), dc: ses.dc || 0, tier: ses.tier, bestCombo: ses.bestCombo });
+      // Eight questions complete the day: the streak counts and the prize is paid here.
+      // dc stays null until the optional Deep Cut bonus is played.
+      const r = S.finishDaily({ score, marks: ses.marks.slice(), dc: null, tier: ses.tier, bestCombo: ses.bestCombo });
       const st = S.load(); st.progress = null; S.save();
-      title = ['Rough gig. Tomorrow’s another show.', 'Rough gig. Tomorrow’s another show.', 'Sound check done.', 'Sound check done.', 'Solid set.', 'Solid set.', 'Encore!', 'Encore!', 'Standing ovation!'][correct];
-      xpGain = Math.round(score / 10) + 20;
+      title = ['Day complete. Tomorrow’s another show.', 'Day complete. Tomorrow’s another show.', 'Day complete — sound check done.', 'Day complete — sound check done.', 'Day complete — solid set.', 'Day complete — solid set.', 'Day complete — encore!', 'Day complete — encore!', 'Day complete — standing ovation!'][correct];
+      // today's prize: XP for finishing, plus more the longer your streak
+      const streakDays = Math.min(r.streak, 10);
+      const prize = 20 + 5 * streakDays;
+      xpGain = Math.round(score / 10) + prize;
       icon = '🎤'; tone = correct >= 6 ? 'great' : correct >= 4 ? 'good' : 'low';
-      tiles = [tile('mint', 'Correct', `${correct}/8`), tile('yellow', 'Deep cut', '💿 ' + (ses.dc || 0)), tile('orange', 'Day streak', '🔥 ' + r.streak)];
-      const res = { score, marks: ses.marks, dc: ses.dc || 0, tier: ses.tier };
-      lead = marksRow(ses.marks, ses.dc || 0);
+      tiles = [tile('mint', 'Correct', `${correct}/8`), tile('yellow', 'Best combo', '🔥 ' + ses.bestCombo), tile('orange', 'Day streak', '🔥 ' + r.streak)];
+      const res = { score, marks: ses.marks, dc: null, tier: ses.tier };
+      lead = [
+        marksRow(ses.marks, null),
+        h('section', { class: 'prize' },
+          h('span', { class: 'prize-ico', 'aria-hidden': 'true' }, '🎁'),
+          h('div', null, h('span', { class: 'eyebrow' }, 'Today’s prize'), h('strong', null, `+${prize} XP`),
+            h('span', null, `20 for finishing your set, ${5 * streakDays} for your ${r.streak}-day streak. Come back tomorrow and it grows.`))),
+        h('section', { class: 'bonus' },
+          h('span', { class: 'bonus-ico', 'aria-hidden': 'true' }, '💿'),
+          h('div', null, h('span', { class: 'eyebrow' }, 'Optional bonus round'), h('strong', null, 'The Deep Cut'),
+            h('span', null, 'One question with many right answers. The rarer your pick, the more it adds to today’s score.')),
+          h('button', { class: 'ghost', onclick: deepBonus }, 'Play it')),
+      ];
       primary = h('div', { class: 'actions' },
-        h('button', { class: 'btn big', onclick: () => share(res) }, 'Share result'),
-        h('button', { class: 'ghost', onclick: home }, 'Done'));
+        h('button', { class: 'btn big', onclick: home }, 'Done for today'),
+        h('button', { class: 'ghost', onclick: () => share(res) }, 'Share result'));
       party = correct >= 6;
     } else if (ses.mode === 'lesson') {
       const les = ses.lesson;

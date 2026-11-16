@@ -33,7 +33,10 @@ The app has four tabs along the bottom: **Today** (the Daily Set, your week and 
 - **Daily Set** — 8 questions, the same for everyone on a given day and level (seeded by the date),
   mixing four kinds of round: 👂 Ear (hear it), 👁️ Eye (read it), 🧠 Brain (work it out),
   🎹 Build (tap it on a keyboard or fretboard). Speed and answer streaks multiply the points.
-- **Deep Cut encore** — one open question with many right answers. Three picks; the more obscure
+  The day is complete after question 8: the streak counts and you collect the day's prize
+  (bonus XP that grows with your streak).
+- **Deep Cut bonus round** — optional, offered once the Daily Set is done; its points are added to
+  the day's score. One open question with many right answers. Three picks; the more obscure
   the pick, the more it scores (5–100). Obscurity comes from a built-in ranking in `js/deepcut.js`,
   not from other players' answers.
 - **Smart Practice / Train a skill** — ten questions weighted toward what you get wrong, followed
