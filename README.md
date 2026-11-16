@@ -22,6 +22,10 @@ http(s), the Share button adds the site's link to the copied result.
 
 ## How it works
 
+The app has four tabs along the bottom: **Today** (the Daily Set, your week and your next lesson),
+**Learn** (the lesson path), **Practice** (skills, games and the finder) and **Profile**
+(level, achievements, settings).
+
 - **Learn** — twelve short lessons for complete beginners (note names, steps, the major scale,
   intervals, major and minor chords, reading the staff, guitar strings and first chords, keys,
   chord families, the pentatonic scale). Each lesson is a few cards to read, look at and listen

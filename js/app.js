@@ -35,14 +35,16 @@
   let disposers = [];
   let onKey = null;
   const later = (fn, ms) => { const id = setTimeout(fn, ms); disposers.push(() => clearTimeout(id)); return id; };
-  function show(node) {
+  // tab: 'today' | 'learn' | 'practice' | 'profile' shows the bottom tab bar; omit it for focused flows
+  function show(node, tab) {
     disposers.forEach((f) => f());
     disposers = [];
     onKey = null;
     A.stop();
-    document.querySelectorAll('.sheet-wrap, .confetti, .toast').forEach((n) => n.remove());
+    document.querySelectorAll('.sheet-wrap, .confetti, .toast, .tabbar').forEach((n) => n.remove());
     app.textContent = '';
     node.classList.add('screen');
+    if (tab) { node.classList.add('tabbed'); document.body.appendChild(tabbar(tab)); }
     app.appendChild(node);
     window.scrollTo(0, 0);
   }
@@ -63,7 +65,7 @@
     setTimeout(() => t.remove(), 2400);
   }
   function countUp(el, to, ms) {
-    if (reduced || !to) { el.textContent = num(to); return; }
+    if (reduced || !to || document.hidden) { el.textContent = num(to); return; }
     const t0 = performance.now();
     let finished = false;
     const step = (t) => {
@@ -143,31 +145,72 @@
       marks.map((m) => h('i', { class: m ? 'ok' : 'no' })),
       dc !== undefined && dc !== null ? h('span', { class: 'dcchip' }, '💿 ', num(dc)) : null);
   }
+  // ---------- navigation: four tabs along the bottom ----------
+  const TAB_ICONS = {
+    today: '<svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.500V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+    learn: '<svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>',
+    practice: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+    profile: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.500 21c.6-4 3.600-6 7.500-6s6.900 2 7.500 6"/></svg>',
+  };
+  function tabbar(active) {
+    const tabs = [['today', 'Today', home], ['learn', 'Learn', lessons], ['practice', 'Practice', practiceTab], ['profile', 'Profile', profile]];
+    return h('nav', { class: 'tabbar', 'aria-label': 'Main' }, h('div', { class: 'tabbar-in' },
+      tabs.map(([id, label, fn]) => h('button', { class: 'tab' + (id === active ? ' on' : ''), 'aria-current': id === active ? 'page' : null, onclick: () => { if (id !== active) fn(); } },
+        h('span', { class: 'tab-ico', 'aria-hidden': 'true', html: TAB_ICONS[id] }), h('span', null, label)))));
+  }
+  function topbar() {
+    const st = S.load();
+    const lv = S.levelInfo(st.xp);
+    const streak = S.liveStreak();
+    return h('header', { class: 'top' },
+      h('div', { class: 'brand' }, logo(), h('span', null, 'Tonic')),
+      h('div', { class: 'chips' },
+        h('span', { class: 'chip streak' + (streak ? ' lit' : ''), title: 'Daily streak' }, '🔥 ', String(streak)),
+        h('button', { class: 'chip lvchip', onclick: profile, 'aria-label': `Level ${lv.level}, ${lv.title}. Open profile` },
+          h('b', null, 'Lv ' + lv.level), h('span', { class: 'mini' }, h('i', { style: { width: Math.round(lv.pct * 100) + '%' } })))));
+  }
+  // Monday-to-Sunday strip showing which days this week had a Daily Set
+  function weekStrip(st) {
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7;
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow + i);
+      const done = !!st.daily[S.dateStr(d)];
+      days.push(h('div', { class: 'wd' + (done ? ' done' : '') + (i === dow ? ' today' : '') + (i > dow ? ' future' : '') },
+        h('span', null, 'MTWTFSS'[i]), h('i', null, done ? '✓' : '')));
+    }
+    return h('section', { class: 'week', 'aria-label': 'Daily Sets played this week' }, days);
+  }
   function learnCard(st) {
     const doneN = L.LESSONS.filter((l) => st.lessons[l.id]).length;
     const next = L.LESSONS.find((l) => !st.lessons[l.id]);
     const idx = next ? L.LESSONS.indexOf(next) + 1 : 0;
     return h('section', { class: 'learn' },
       h('div', { class: 'learn-top' },
-        h('div', { class: 'eyebrow' }, `Learn · ${doneN} of ${L.LESSONS.length} lessons`),
+        h('div', { class: 'eyebrow' }, `Continue learning · ${doneN} of ${L.LESSONS.length}`),
         h('span', { class: 'bar' }, h('i', { style: { width: Math.round((doneN / L.LESSONS.length) * 100) + '%' } }))),
       next
         ? h('div', { class: 'learn-next' },
           h('span', { class: 'learn-ico', 'aria-hidden': 'true' }, next.icon),
-          h('div', null, h('strong', null, `Lesson ${idx} · ${next.title}`), h('span', null, next.blurb)))
+          h('div', null, h('strong', null, `Lesson ${idx} · ${next.title}`), h('span', null, `${next.blurb} · about 3 min`)))
         : h('div', { class: 'learn-next' }, h('span', { class: 'learn-ico', 'aria-hidden': 'true' }, '🎓'),
           h('div', null, h('strong', null, 'Every lesson complete'), h('span', null, 'Revisit any of them whenever you like.'))),
       h('div', { class: 'hero-row' },
         next ? h('button', { class: 'btn', onclick: () => { A.unlock(); lesson(next, 0); } }, doneN ? 'Next lesson' : 'Start learning') : null,
-        h('button', { class: 'ghost', onclick: lessons }, 'All lessons')));
+        h('button', { class: 'ghost', onclick: lessons }, 'See the path')));
   }
+  function modeCard(cls, icon, title, sub, fn) {
+    return h('button', { class: 'mode m-' + cls, onclick: () => { A.unlock(); fn(); } },
+      h('span', { class: 'mode-ico', 'aria-hidden': 'true' }, icon), h('strong', null, title), h('span', null, sub));
+  }
+
+  // ---------- Today ----------
   function home() {
     const st = S.load();
     if (!st.tier) return onboarding();
     A.setEnabled(st.sound);
     Q.setGuitar(st.guitar);
-    const lv = S.levelInfo(st.xp);
-    const streak = S.liveStreak();
     const done = S.todayResult();
     const n = S.dayNumber();
     const tier = Q.TIERS[st.tier];
@@ -184,7 +227,6 @@
       };
       tick();
       const iv = setInterval(tick, 1000);
-      disposers.push(() => clearInterval(iv));
       hero = h('section', { class: 'hero done' },
         h('div', { class: 'eyebrow' }, `Daily Set #${n} · done`),
         h('div', { class: 'hero-score' }, num(done.score), h('small', null, ' pts')),
@@ -192,6 +234,7 @@
         h('div', { class: 'hero-row' },
           h('button', { class: 'btn', onclick: () => share(done) }, 'Share result'),
           h('p', { class: 'next' }, 'Next set in ', cd)));
+      hero.__dispose = () => clearInterval(iv);
     } else {
       hero = h('section', { class: 'hero' },
         h('div', { class: 'eyebrow' }, `Daily Set #${n} · ${dateLabel}`),
@@ -201,13 +244,29 @@
         h('button', { class: 'btn big', onclick: () => { A.unlock(); startDaily(); } }, inProgress ? 'Continue' : 'Play today’s set'));
     }
 
-    const modes = h('section', { class: 'modes' },
-      modeCard('mix', '🎯', 'Smart Practice', 'Ten questions aimed at your weak spots', () => startPractice('mix')),
-      modeCard('find', '🔎', 'Chord & Scale Finder', 'See and hear any chord or scale on piano and guitar', () => explorer()),
-      modeCard('surv', '❤️', 'Survival', st.survivalBest ? `Three lives. Best run: ${st.survivalBest}` : 'Three lives. It keeps getting harder', startSurvival),
-      modeCard('deep', '💿', 'Deep Cut', 'Many right answers. Go niche', startDeepFree));
+    // newcomers see the lessons first; everyone else sees the daily set first
+    const learnFirst = st.tier === 'beginner' && Object.keys(st.lessons).length < 4;
+    const learn = learnCard(st);
+    show(h('main', { class: 'home' },
+      topbar(),
+      weekStrip(st),
+      learnFirst ? [learn, hero] : [hero, learn],
+      h('section', { class: 'modes' },
+        modeCard('mix', '🎯', 'Smart Practice', 'Ten questions aimed at your weak spots', () => startPractice('mix')),
+        modeCard('find', '🔎', 'Chord & Scale Finder', 'See and hear any chord or scale', () => explorer()))), 'today');
+    if (hero.__dispose) disposers.push(hero.__dispose);
+  }
 
-    const skills = h('section', null,
+  // ---------- Practice ----------
+  function practiceTab() {
+    const st = S.load();
+    show(h('main', { class: 'practice' },
+      topbar(),
+      h('h1', null, 'Practice'),
+      h('button', { class: 'feature', onclick: () => { A.unlock(); startPractice('mix'); } },
+        h('span', { class: 'feature-ico', 'aria-hidden': 'true' }, '🎯'),
+        h('span', { class: 'feature-main' }, h('strong', null, 'Smart Practice'), h('span', null, 'Ten questions picked from what you miss most, then a second chance at any you get wrong.')),
+        h('span', { class: 'feature-go' }, 'Start')),
       h('h2', { class: 'eyebrow' }, 'Train a skill'),
       h('div', { class: 'skills' }, Q.SKILLS.map((sk) => {
         const info = S.skillInfo(sk.id);
@@ -216,29 +275,13 @@
           h('span', { class: 'skill-main' }, h('strong', null, sk.name), h('span', null, sk.blurb)),
           h('span', { class: 'skill-lv' }, 'Lv ' + info.level),
           h('span', { class: 'bar' }, h('i', { style: { width: Math.round(info.pct * 100) + '%' } })));
-      })));
-
-    // newcomers see the lessons first; everyone else sees the daily set first
-    const lessonsDone = Object.keys(st.lessons).length;
-    const learnFirst = st.tier === 'beginner' && lessonsDone < 4;
-    const learn = learnCard(st);
-    show(h('main', { class: 'home' },
-      h('header', { class: 'top' },
-        h('div', { class: 'brand' }, logo(), h('span', null, 'Tonic')),
-        h('div', { class: 'chips' },
-          h('span', { class: 'chip streak' + (streak ? ' lit' : ''), title: 'Daily streak' }, '🔥 ', String(streak)),
-          h('button', { class: 'chip', onclick: profile, 'aria-label': 'Profile, achievements and settings' }, '⚙︎'))),
-      h('button', { class: 'levelbar', onclick: profile, 'aria-label': `Level ${lv.level}, ${lv.title}. Open profile` },
-        h('span', { class: 'lv' }, 'Lv ' + lv.level),
-        h('span', { class: 'lv-main' }, h('strong', null, lv.title), h('span', { class: 'bar' }, h('i', { style: { width: Math.round(lv.pct * 100) + '%' } }))),
-        h('span', { class: 'lv-xp' }, `${num(lv.into)} / ${num(lv.span)} XP`)),
-      learnFirst ? [learn, hero] : [hero, learn],
-      modes, skills,
-      h('footer', { class: 'foot' }, 'Tonic · sound on for the ear rounds 🔊')));
-  }
-  function modeCard(cls, icon, title, sub, fn) {
-    return h('button', { class: 'mode m-' + cls, onclick: () => { A.unlock(); fn(); } },
-      h('span', { class: 'mode-ico', 'aria-hidden': 'true' }, icon), h('strong', null, title), h('span', null, sub));
+      })),
+      h('h2', { class: 'eyebrow' }, 'Games and tools'),
+      h('section', { class: 'modes three' },
+        modeCard('surv', '❤️', 'Survival', st.survivalBest ? `Three lives. Best run: ${st.survivalBest}` : 'Three lives. It keeps getting harder', startSurvival),
+        modeCard('deep', '💿', 'Deep Cut', 'Many right answers. Go niche', startDeepFree),
+        modeCard('find', '🔎', 'Finder', 'Any chord or scale, on piano and guitar', () => explorer()))), 'practice');
+    onKey = (e) => { if (e.key === 'Escape') home(); };
   }
 
   function shareText(res) {
@@ -266,22 +309,85 @@
   // =====================================================================
   // Learn path
   // =====================================================================
+  const CHAPTERS = [
+    { title: 'First notes', blurb: 'Note names, steps and the major scale', ids: ['alphabet', 'steps', 'major-scale'] },
+    { title: 'Intervals and chords', blurb: 'Distances between notes, major and minor', ids: ['intervals', 'major-chords', 'minor-chords'] },
+    { title: 'Reading and guitar', blurb: 'The staff, the six strings, first chords', ids: ['staff', 'guitar-strings', 'guitar-chords'] },
+    { title: 'Keys and harmony', blurb: 'Key signatures, chord families, pentatonics', ids: ['keys', 'chord-family', 'pentatonic'] },
+  ];
+  const starCount = (rec) => (!rec ? 0 : rec.best >= rec.total ? 3 : rec.best >= rec.total * 0.6 ? 2 : 1);
+  const starRow = (n) => h('span', { class: 'stars', 'aria-label': n + ' of 3 stars' }, [0, 1, 2].map((i) => h('i', { class: i < n ? 'on' : '' }, '★')));
+
+  // The Learn tab: a winding path of lessons, grouped into four chapters.
   function lessons() {
     const st = S.load();
     const next = L.LESSONS.find((l) => !st.lessons[l.id]);
+    const doneN = L.LESSONS.filter((l) => st.lessons[l.id]).length;
+    const PW = 320, ROW = 108, R = 36;
+    let nextEl = null;
+    const chapters = CHAPTERS.map((ch, ci) => {
+      const list = ch.ids.map((id) => L.byId(id));
+      const chDone = list.filter((l) => st.lessons[l.id]).length;
+      const pct = Math.round((chDone / list.length) * 100);
+      const xs = list.map((_, i) => PW / 2 + ((i + ci) % 2 === 0 ? -70 : 70));
+      const ys = list.map((_, i) => i * ROW + 20 + R);
+      let d = '';
+      for (let i = 0; i < list.length - 1; i++) {
+        const my = (ys[i] + ys[i + 1]) / 2;
+        d += `M${xs[i]} ${ys[i]} C${xs[i]} ${my} ${xs[i + 1]} ${my} ${xs[i + 1]} ${ys[i + 1]} `;
+      }
+      const nodes = list.map((les, i) => {
+        const rec = st.lessons[les.id];
+        const n = L.LESSONS.indexOf(les) + 1;
+        const state = rec ? 'done' : les === next ? 'cur' : 'todo';
+        const left = xs[i] < PW / 2;
+        const btn = h('button', { class: 'node ' + state, style: { left: xs[i] - R + 'px', top: ys[i] - R + 'px' },
+          'aria-label': `Lesson ${n}: ${les.title}${rec ? ', completed' : les === next ? ', up next' : ''}`, onclick: () => lessonSheet(les) },
+        h('span', { class: 'node-ico', 'aria-hidden': 'true' }, les.icon),
+        rec ? h('span', { class: 'node-check', 'aria-hidden': 'true' }, '✓') : null,
+        les === next ? h('span', { class: 'node-start', 'aria-hidden': 'true' }, 'Start') : null);
+        if (les === next) nextEl = btn;
+        const label = h('div', { class: 'node-label ' + (left ? 'r' : 'l'), style: left ? { left: xs[i] + R + 14 + 'px', top: ys[i] - 26 + 'px' } : { right: PW - xs[i] + R + 14 + 'px', top: ys[i] - 26 + 'px' } },
+          h('span', { class: 'eyebrow' }, 'Lesson ' + n), h('strong', null, les.title), rec ? starRow(starCount(rec)) : null);
+        return [btn, label];
+      });
+      const line = `<svg viewBox="0 0 ${PW} ${list.length * ROW}" aria-hidden="true"><path d="${d}"/></svg>`;
+      const ring = h('div', { class: 'ring', 'aria-label': `${chDone} of ${list.length} lessons done` }, h('b', null, `${chDone}/${list.length}`));
+      ring.style.setProperty('--p', pct);
+      return h('section', { class: 'chapter' + (chDone === list.length ? ' complete' : '') },
+        h('div', { class: 'chapter-head' },
+          h('div', null, h('span', { class: 'eyebrow' }, 'Chapter ' + (ci + 1)), h('strong', null, ch.title), h('span', null, ch.blurb)),
+          ring),
+        h('div', { class: 'path', style: { height: list.length * ROW + 'px' } }, h('div', { class: 'path-line', html: line }), nodes));
+    });
     show(h('main', { class: 'lessons' },
-      backHeader('Home', home),
-      h('h1', null, 'Learn'),
-      h('p', { class: 'lead' }, 'Twelve short lessons, from “what is a note?” to chords in a key. Each one is a few minutes: read, listen, then try five questions.'),
-      h('div', { class: 'lesson-list' }, L.LESSONS.map((l, i) => {
-        const rec = st.lessons[l.id];
-        return h('button', { class: 'lrow' + (rec ? ' done' : '') + (l === next ? ' next' : ''), onclick: () => { A.unlock(); lesson(l, 0); } },
-          h('span', { class: 'lnum' }, rec ? '✓' : String(i + 1)),
-          h('span', { class: 'lico', 'aria-hidden': 'true' }, l.icon),
-          h('span', { class: 'lmain' }, h('strong', null, l.title), h('span', null, l.blurb)),
-          h('span', { class: 'lstat' }, rec ? `${rec.best}/${rec.total}` : l === next ? 'Start' : ''));
-      }))));
-    onKey = (e) => { if (e.key === 'Escape') home(); };
+      topbar(),
+      h('div', { class: 'learn-head' },
+        h('h1', null, 'Learn'),
+        h('p', { class: 'lead' }, doneN === L.LESSONS.length ? 'All twelve lessons done. Tap any of them to revisit it.' : `${doneN} of ${L.LESSONS.length} lessons done. Each one takes about three minutes.`),
+        h('span', { class: 'bar' }, h('i', { style: { width: Math.round((doneN / L.LESSONS.length) * 100) + '%' } }))),
+      chapters), 'learn');
+    if (nextEl && L.LESSONS.indexOf(next) > 2) nextEl.scrollIntoView({ block: 'center' });
+    onKey = (e) => { if (e.key === 'Escape') { if (document.querySelector('.sheet-wrap.modal')) document.querySelector('.sheet-wrap.modal').remove(); else home(); } };
+  }
+  // Tapping a lesson on the path opens this card.
+  function lessonSheet(les) {
+    document.querySelectorAll('.sheet-wrap').forEach((n) => n.remove());
+    const rec = S.load().lessons[les.id];
+    const n = L.LESSONS.indexOf(les) + 1;
+    const wrap = h('div', { class: 'sheet-wrap modal', onclick: (e) => { if (e.target === wrap) wrap.remove(); } },
+      h('div', { class: 'sheet info', role: 'dialog', 'aria-label': les.title },
+        h('div', { class: 'sheet-head' },
+          h('span', { class: 'sheet-ico big', 'aria-hidden': 'true' }, les.icon),
+          h('div', null, h('span', { class: 'eyebrow' }, 'Lesson ' + n), h('strong', null, les.title))),
+        h('p', { class: 'explain' }, les.blurb + '.'),
+        h('div', { class: 'meta' },
+          h('span', null, `${les.cards.length} short cards`), h('span', null, '5 questions'), h('span', null, 'About 3 min'),
+          rec ? h('span', { class: 'best' }, `Best ${rec.best}/${rec.total}`) : null),
+        h('button', { class: 'btn big go', onclick: () => { A.unlock(); lesson(les, 0); } }, rec ? 'Review lesson' : 'Start lesson'),
+        h('button', { class: 'ghost', onclick: () => wrap.remove() }, 'Not now')));
+    document.body.appendChild(wrap);
+    wrap.querySelector('.go').focus({ preventScroll: true });
   }
 
   function lesson(les, idx) {
@@ -677,7 +783,8 @@
       const moreToRetry = !retry && (ses.mode === 'practice' || ses.mode === 'lesson') && ses.i >= ses.total && ses.marks.some((m) => !m);
       const isLast = retry ? ses.retry.length === 0
         : (isSurv && ses.lives <= 0) || ((ses.mode === 'practice' || ses.mode === 'lesson') && ses.i >= ses.total && !moreToRetry);
-      const sheet = h('div', { class: 'sheet ' + (ok ? 'good' : 'bad'), role: 'status' },
+      // the explanation scrolls if it is long; Continue always stays in reach
+      const sheet = h('div', { class: 'sheet ' + (ok ? 'good' : 'bad'), role: 'status' }, h('div', { class: 'sheet-body' },
         h('div', { class: 'sheet-head' },
           h('span', { class: 'sheet-ico', 'aria-hidden': 'true' }, ok ? '✓' : '✗'),
           h('div', null,
@@ -686,10 +793,10 @@
         h('p', { class: 'explain', html: q.explain }),
         revealEl,
         h('div', { class: 'sheet-actions' },
-          q.audio ? h('button', { class: 'ghost', onclick: () => A.play(q.audio) }, speaker(), ok ? 'Hear it again' : 'Hear the right one') : null,
-          !ok && chosen && chosen.audio ? h('button', { class: 'ghost', onclick: () => A.play(chosen.audio) }, speaker(), 'Hear your answer') : null,
-          q.audioAfter ? h('button', { class: 'ghost', onclick: () => A.play(q.audioAfter) }, speaker(), 'Hear it') : null,
-          h('button', { class: 'btn go', onclick: next }, isLast ? 'See results' : 'Continue', h('kbd', null, '↵'))));
+          q.audio ? h('button', { class: 'ghost', onclick: () => A.play(q.audio) }, speaker(), ok ? 'Hear it again' : 'Right answer') : null,
+          !ok && chosen && chosen.audio ? h('button', { class: 'ghost', onclick: () => A.play(chosen.audio) }, speaker(), 'Your answer') : null,
+          q.audioAfter ? h('button', { class: 'ghost', onclick: () => A.play(q.audioAfter) }, speaker(), 'Hear it') : null)),
+        h('button', { class: 'btn big go', onclick: next }, isLast ? 'See results' : 'Continue', h('kbd', null, '↵')));
       sheetWrap = h('div', { class: 'sheet-wrap' }, sheet);
       document.body.appendChild(sheetWrap);
       sheet.querySelector('.go').focus({ preventScroll: true });
@@ -872,25 +979,35 @@
           h('b', null, l.q.answerText)),
         h('p', { class: 'explain', html: l.q.explain }))));
   }
-  const stat = (big, small) => h('div', null, h('strong', null, big), h('span', null, small));
+
+  const tile = (tone, label, value) => h('div', { class: 'tile t-' + tone }, h('em', null, label), h('strong', null, value));
+  // The medal at the top of a results screen. tone: great | good | low
+  function emblem(icon, tone, starsN) {
+    return h('div', { class: 'emblem e-' + tone, 'aria-hidden': 'true' },
+      h('span', { class: 'emblem-ring' }), h('span', { class: 'emblem-ring r2' }),
+      h('span', { class: 'emblem-core' }, icon),
+      starsN === undefined ? null : h('span', { class: 'emblem-stars' }, [0, 1, 2].map((i) => h('i', { class: i < starsN ? 'on' : '' }, '★'))));
+  }
 
   function results(ses) {
     const correct = ses.marks.filter(Boolean).length;
     const totalQ = ses.marks.length;
-    const fixedStat = ses.retryTotal ? stat(`${ses.fixed}/${ses.retryTotal}`, 'fixed on 2nd try') : null;
-    let title, score = ses.score, sub = 'points', xpGain, extra = null, primary;
+    const fixedTile = ses.retryTotal ? tile('sky', '2nd try', `${ses.fixed}/${ses.retryTotal}`) : null;
+    let title, score = ses.score, sub = 'points', xpGain, tiles, primary, icon, tone, starsN, lead = null, party = false;
     if (ses.mode === 'daily') {
       score = ses.score + (ses.dc || 0);
       const r = S.finishDaily({ score, marks: ses.marks.slice(), dc: ses.dc || 0, tier: ses.tier, bestCombo: ses.bestCombo });
       const st = S.load(); st.progress = null; S.save();
       title = ['Rough gig. Tomorrow’s another show.', 'Rough gig. Tomorrow’s another show.', 'Sound check done.', 'Sound check done.', 'Solid set.', 'Solid set.', 'Encore!', 'Encore!', 'Standing ovation!'][correct];
       xpGain = Math.round(score / 10) + 20;
-      extra = h('div', { class: 'statrow' }, stat(`${correct}/8`, 'correct'), stat('💿 ' + (ses.dc || 0), 'deep cut'), stat('🔥 ' + r.streak, 'day streak'));
+      icon = '🎤'; tone = correct >= 6 ? 'great' : correct >= 4 ? 'good' : 'low';
+      tiles = [tile('mint', 'Correct', `${correct}/8`), tile('yellow', 'Deep cut', '💿 ' + (ses.dc || 0)), tile('orange', 'Day streak', '🔥 ' + r.streak)];
       const res = { score, marks: ses.marks, dc: ses.dc || 0, tier: ses.tier };
-      primary = [marksRow(ses.marks, ses.dc || 0), h('div', { class: 'actions' },
+      lead = marksRow(ses.marks, ses.dc || 0);
+      primary = h('div', { class: 'actions' },
         h('button', { class: 'btn big', onclick: () => share(res) }, 'Share result'),
-        h('button', { class: 'ghost', onclick: home }, 'Home'))];
-      if (correct >= 6) { confetti(); A.sfx('win'); }
+        h('button', { class: 'ghost', onclick: home }, 'Done'));
+      party = correct >= 6;
     } else if (ses.mode === 'lesson') {
       const les = ses.lesson;
       const r = S.finishLesson(les.id, correct, totalQ);
@@ -898,37 +1015,46 @@
       title = correct === totalQ ? 'Lesson mastered!' : correct >= totalQ * 0.6 ? 'Lesson complete!' : 'Lesson done — worth a second look.';
       score = correct; sub = `of ${totalQ} correct`;
       xpGain = r.first ? 40 + correct * 8 : correct * 4;
-      extra = h('div', { class: 'statrow' }, stat(les.icon, les.title), fixedStat);
+      icon = les.icon; tone = correct >= totalQ * 0.6 ? 'great' : 'good';
+      starsN = correct >= totalQ ? 3 : correct >= totalQ * 0.6 ? 2 : 1;
+      tiles = [tile('mint', 'Correct', `${correct}/${totalQ}`), fixedTile, tile('yellow', 'Lessons', `${Object.keys(S.load().lessons).length}/${L.LESSONS.length}`)];
       primary = h('div', { class: 'actions' },
         nextLes ? h('button', { class: 'btn big', onclick: () => lesson(nextLes, 0) }, `Next: ${nextLes.title}`) : h('button', { class: 'btn big', onclick: home }, 'Back home'),
         correct < totalQ ? h('button', { class: 'ghost', onclick: () => lesson(les, 0) }, 'Review this lesson') : null,
-        h('button', { class: 'ghost', onclick: lessons }, 'All lessons'));
-      if (correct >= totalQ * 0.6) { confetti(); A.sfx('win'); }
+        h('button', { class: 'ghost', onclick: lessons }, 'Back to the path'));
+      party = correct >= totalQ * 0.6;
     } else if (ses.mode === 'practice') {
       title = correct === totalQ ? 'Flawless.' : correct >= totalQ * 0.7 ? 'Good session.' : 'That’s how you learn.';
       xpGain = ses.log.reduce((s, l) => s + (l.correct ? 6 + l.q.diff * 2 : 1), 0) + (ses.fixed || 0) * 3;
-      extra = h('div', { class: 'statrow' }, stat(`${correct}/${totalQ}`, 'correct'), stat('🔥 ' + ses.bestCombo, 'best combo'), fixedStat);
+      icon = '🎯'; tone = correct === totalQ ? 'great' : correct >= totalQ * 0.5 ? 'good' : 'low';
+      tiles = [tile('mint', 'Correct', `${correct}/${totalQ}`), tile('orange', 'Best combo', '🔥 ' + ses.bestCombo), fixedTile];
       primary = h('div', { class: 'actions' },
         h('button', { class: 'btn big', onclick: () => startPractice(ses.skill) }, 'Go again'),
-        h('button', { class: 'ghost', onclick: home }, 'Home'));
-      if (correct === totalQ) { confetti(); A.sfx('win'); }
+        h('button', { class: 'ghost', onclick: practiceTab }, 'Done'));
+      party = correct === totalQ;
     } else {
       const isBest = S.recordSurvival(correct);
       title = isBest && correct > 0 ? 'New personal best!' : correct >= 10 ? 'What a run.' : 'Out of lives.';
       score = correct; sub = 'questions survived';
       xpGain = correct * 6;
-      extra = h('div', { class: 'statrow' }, stat(num(ses.score), 'points'), stat('🔥 ' + ses.bestCombo, 'best combo'), stat(String(S.load().survivalBest), 'best run'));
+      icon = '❤️'; tone = isBest && correct > 0 ? 'great' : correct >= 5 ? 'good' : 'low';
+      tiles = [tile('yellow', 'Points', num(ses.score)), tile('orange', 'Best combo', '🔥 ' + ses.bestCombo), tile('mint', 'Best run', String(S.load().survivalBest))];
       primary = h('div', { class: 'actions' },
         h('button', { class: 'btn big', onclick: startSurvival }, 'Try again'),
-        h('button', { class: 'ghost', onclick: home }, 'Home'));
-      if (isBest && correct >= 5) { confetti(); A.sfx('win'); }
+        h('button', { class: 'ghost', onclick: practiceTab }, 'Done'));
+      party = isBest && correct >= 5;
     }
     const xp = S.addXp(xpGain);
     const ach = S.checkAchievements();
+    if (party) { confetti(); A.sfx('win'); }
     show(h('main', { class: 'results' },
-      h('div', { class: 'eyebrow' }, ses.mode === 'daily' ? `Daily Set #${S.dayNumber()} · ${Q.TIERS[ses.tier].name}` : ses.mode === 'lesson' ? `Lesson ${L.LESSONS.indexOf(ses.lesson) + 1}` : ses.title),
-      h('h1', null, title),
-      bigScore(score, sub), extra, xpBlock(xp), achBlock(ach), primary, recap(ses.log)));
+      emblem(icon, tone, starsN),
+      h('div', { class: 'eyebrow center' }, ses.mode === 'daily' ? `Daily Set #${S.dayNumber()} · ${Q.TIERS[ses.tier].name}` : ses.mode === 'lesson' ? `Lesson ${L.LESSONS.indexOf(ses.lesson) + 1} · ${ses.lesson.title}` : ses.title),
+      h('h1', { class: 'center' }, title),
+      ses.mode === 'lesson' ? null : bigScore(score, sub), // a lesson's score is already in its tiles and stars
+      lead,
+      h('div', { class: 'tiles' }, tiles, tile('violet', 'XP earned', '+' + num(xpGain))),
+      xpBlock(xp), achBlock(ach), primary, recap(ses.log)));
   }
 
   // =====================================================================
@@ -1015,7 +1141,7 @@
     const cap = (s) => s[0].toUpperCase() + s.slice(1);
     buildTypes();
     show(h('main', { class: 'finder' },
-      backHeader('Home', home),
+      backHeader('Practice', practiceTab),
       h('h1', null, 'Chord & Scale Finder'),
       h('p', { class: 'lead' }, 'Pick a root and a type to see it on piano and guitar, and hear how it sounds.'),
       h('div', { class: 'segctl wide' }, modeBtns),
@@ -1023,7 +1149,7 @@
       typeBox,
       out));
     render();
-    onKey = (e) => { if (e.key === 'Escape') home(); };
+    onKey = (e) => { if (e.key === 'Escape') practiceTab(); };
   }
 
   // =====================================================================
@@ -1048,12 +1174,19 @@
       st.tier = id; st.progress = null; S.save(); profile(); toast('Level set to ' + Q.TIERS[id].name);
     } }, Q.TIERS[id].name));
     const unlocked = S.ACH.filter((a) => st.ach[a.id]).length;
+    // unlocked achievements first, so progress is the first thing you see
+    const achs = S.ACH.slice().sort((a, b) => (st.ach[b.id] ? 1 : 0) - (st.ach[a.id] ? 1 : 0));
     show(h('main', { class: 'profile' },
-      backHeader('Home', home),
+      h('header', { class: 'top' }, h('div', { class: 'brand' }, logo(), h('span', null, 'Tonic'))),
       h('section', { class: 'card me' },
         h('div', { class: 'me-lv' }, String(lv.level)),
         h('div', null, h('strong', null, lv.title), h('span', null, `${num(st.xp)} XP total · ${num(lv.span - lv.into)} to next level`), h('span', { class: 'bar' }, h('i', { style: { width: Math.round(lv.pct * 100) + '%' } })))),
-      h('div', { class: 'statrow' }, stat('🔥 ' + S.liveStreak(), 'streak'), stat(String(st.streak.best), 'best streak'), stat(acc + '%', 'accuracy'), stat(num(c.correct), 'correct')),
+      h('div', { class: 'tiles' },
+        tile('orange', 'Streak', '🔥 ' + S.liveStreak()), tile('yellow', 'Best streak', String(st.streak.best)),
+        tile('mint', 'Accuracy', acc + '%'), tile('violet', 'Correct', num(c.correct))),
+      h('h2', { class: 'eyebrow' }, `Achievements · ${unlocked}/${S.ACH.length}`),
+      h('div', { class: 'achs' }, achs.map((a) => h('div', { class: 'ach' + (st.ach[a.id] ? ' on' : '') },
+        h('span', { class: 'ach-ico' }, st.ach[a.id] ? a.icon : '🔒'), h('div', null, h('strong', null, a.name), h('span', null, a.desc))))),
       h('h2', { class: 'eyebrow' }, 'Settings'),
       h('section', { class: 'card settings' },
         h('div', { class: 'set' }, h('div', null, h('strong', null, 'Level'), h('span', null, 'Sets the difficulty of your Daily Set and practice')), h('div', { class: 'segctl' }, tierBtns)),
@@ -1061,10 +1194,7 @@
         switchRow('Guitar questions', 'Mix guitar into the Daily Set, practice and Survival', 'guitar', (v) => Q.setGuitar(v)),
         switchRow('Sound', 'Needed for the ear rounds', 'sound', (v) => { A.setEnabled(v); if (v) A.sfx('lock'); }),
         h('div', { class: 'set' }, h('div', null, h('strong', null, 'Reset progress'), h('span', null, 'Erase XP, streak, lessons and achievements on this device')),
-          h('button', { class: 'ghost danger', onclick: () => { if (window.confirm('Erase all your Tonic progress on this device? This can’t be undone.')) { S.reset(); home(); } } }, 'Reset'))),
-      h('h2', { class: 'eyebrow' }, `Achievements · ${unlocked}/${S.ACH.length}`),
-      h('div', { class: 'achs' }, S.ACH.map((a) => h('div', { class: 'ach' + (st.ach[a.id] ? ' on' : '') },
-        h('span', { class: 'ach-ico' }, st.ach[a.id] ? a.icon : '🔒'), h('div', null, h('strong', null, a.name), h('span', null, a.desc)))))));
+          h('button', { class: 'ghost danger', onclick: () => { if (window.confirm('Erase all your Tonic progress on this device? This can’t be undone.')) { S.reset(); home(); } } }, 'Reset')))), 'profile');
     onKey = (e) => { if (e.key === 'Escape') home(); };
   }
 
@@ -1083,7 +1213,7 @@
       runDeepCut(round, { title: 'Deep Cut', onDone: (total, best) => deepResults(round, total, best) });
     },
     lesson(id, idx) { lesson(L.byId(id), idx || 0); },
-    home, lessons, explorer,
+    home, lessons, explorer, practice: practiceTab, profile,
   };
 
   home();
