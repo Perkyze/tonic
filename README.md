@@ -22,13 +22,15 @@ http(s), the Share button adds the site's link to the copied result.
 
 ## How it works
 
-The app has four tabs along the bottom: **Today** (the Daily Set, your week and your next lesson),
-**Learn** (the lesson path), **Practice** (skills, games and the finder) and **Profile**
-(level, achievements, settings).
+The app has four tabs along the bottom: **Today** (the Daily Set, your week and a small card
+pointing to your current island), **Learn** (the island map), **Practice & Tools** (Smart Practice,
+skill training, games and the Chord & Scale Finder) and **Profile** (level, achievements, settings).
 
-- **Learn** — 24 short lessons in eight chapters, from zero up to seventh chords, minor keys,
-  the bass clef, the guitar neck and the modes. Each lesson earns up to three stars, and
-  finishing a chapter wins a trophy and bonus XP. The first chapters cover (note names, steps, the major scale,
+- **Learn** — a map of eight islands, one per chapter, with 24 short lessons from zero up to seventh
+  chords, minor keys, the bass clef, the guitar neck and the modes. Each island holds three
+  lessons; finishing all three wins a trophy and bonus XP and lifts the fog off the next island.
+  Your level gives a head start (Beginner: island 1, Intermediate: islands 1–4, Advanced: all),
+  and an island never locks again once opened. Each lesson earns up to three stars. The first chapters cover (note names, steps, the major scale,
   intervals, major and minor chords, reading the staff, guitar strings and first chords, keys,
   chord families, the pentatonic scale). Each lesson is a few cards to read, look at and listen
   to, then five questions on exactly that topic, with no timer.
@@ -57,7 +59,7 @@ The app has four tabs along the bottom: **Today** (the Daily Set, your week and 
 | `js/theory.js` | Notes, intervals, chords, scales, keys — with correct spelling |
 | `js/guitar.js` | Tuning, open chord shapes, fretboard maths |
 | `js/questions.js` | The 29 question generators, hints, the daily set, practice and survival selection |
-| `js/lessons.js` | The Learn path: lesson cards and each lesson's quiz |
+| `js/lessons.js` | The Learn map: lesson cards, each lesson's quiz, and the islands (chapters) |
 | `js/deepcut.js` | Deep Cut prompts and the obscurity ranking |
 | `js/audio.js` | Web Audio synth (piano and plucked-string voices) and sound effects — no audio files |
 | `js/render.js` | SVG piano, staff, guitar chord boxes and fretboard |

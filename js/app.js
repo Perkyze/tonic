@@ -18,7 +18,7 @@
         if (k === 'class') e.className = v;
         else if (k === 'html') e.innerHTML = v;
         else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
-        else if (k === 'style') Object.assign(e.style, v);
+        else if (k === 'style') { for (const s in v) { if (s.slice(0, 2) === '--') e.style.setProperty(s, v[s]); else e.style[s] = v[s]; } }
         else e.setAttribute(k, v === true ? '' : v);
       }
     }
@@ -182,23 +182,22 @@
     }
     return h('section', { class: 'week', 'aria-label': 'Daily Sets played this week' }, days);
   }
-  function learnCard(st) {
-    const doneN = L.LESSONS.filter((l) => st.lessons[l.id]).length;
+  // A small card on Today that points to your current island on the Learn map.
+  function learnTeaser(st) {
+    const isl = S.islands();
     const next = L.LESSONS.find((l) => !st.lessons[l.id]);
-    const idx = next ? L.LESSONS.indexOf(next) + 1 : 0;
-    return h('section', { class: 'learn' },
-      h('div', { class: 'learn-top' },
-        h('div', { class: 'eyebrow' }, `Continue learning · ${doneN} of ${L.LESSONS.length}`),
-        h('span', { class: 'bar' }, h('i', { style: { width: Math.round((doneN / L.LESSONS.length) * 100) + '%' } }))),
-      next
-        ? h('div', { class: 'learn-next' },
-          h('span', { class: 'learn-ico', 'aria-hidden': 'true' }, next.icon),
-          h('div', null, h('strong', null, `Lesson ${idx} · ${next.title}`), h('span', null, `${next.blurb} · about 3 min`)))
-        : h('div', { class: 'learn-next' }, h('span', { class: 'learn-ico', 'aria-hidden': 'true' }, '🎓'),
-          h('div', null, h('strong', null, 'Every lesson complete'), h('span', null, 'Revisit any of them whenever you like.'))),
-      h('div', { class: 'hero-row' },
-        next ? h('button', { class: 'btn', onclick: () => { A.unlock(); lesson(next, 0); } }, doneN ? 'Next lesson' : 'Start learning') : null,
-        h('button', { class: 'ghost', onclick: lessons }, 'See the path')));
+    const ci = next ? L.CHAPTERS.findIndex((ch) => ch.ids.includes(next.id)) : L.CHAPTERS.length - 1;
+    const ch = L.CHAPTERS[ci], info = isl[ci];
+    const fresh = isl.some((o) => o.fresh);
+    const mini = h('span', { class: 'teaser-isle', 'aria-hidden': 'true', style: { '--land': ch.land, '--land2': ch.land2 } }, h('i', null, ch.mark));
+    return h('button', { class: 'teaser', onclick: lessons, 'aria-label': next ? `Learn: Island ${ci + 1}, ${ch.isle}. Next lesson: ${next.title}. Open the map` : 'Learn: every island explored. Open the map' },
+      mini,
+      h('span', { class: 'teaser-main' },
+        h('span', { class: 'eyebrow' }, fresh ? '✨ New island unlocked' : next ? `Learn · Island ${ci + 1} of ${L.CHAPTERS.length}` : 'Learn · Map complete'),
+        h('strong', null, next ? ch.isle : 'Every island explored'),
+        h('span', null, next ? `Next: ${next.title}` : 'Replay any lesson to chase missing stars'),
+        h('span', { class: 'bar' }, h('i', { style: { width: Math.round((info.done / info.total) * 100) + '%' } }))),
+      h('span', { class: 'teaser-go', 'aria-hidden': 'true' }, '›'));
   }
   function modeCard(cls, icon, title, sub, fn) {
     return h('button', { class: 'mode m-' + cls, onclick: () => { A.unlock(); fn(); } },
@@ -248,16 +247,12 @@
         h('button', { class: 'btn big', onclick: () => { A.unlock(); startDaily(); } }, inProgress ? 'Continue' : 'Play today’s set'));
     }
 
-    // newcomers see the lessons first; everyone else sees the daily set first
-    const learnFirst = st.tier === 'beginner' && Object.keys(st.lessons).length < 4;
-    const learn = learnCard(st);
+    // Today is just today: the set, the week, and a small door to the Learn map
     show(h('main', { class: 'home' },
       topbar(),
+      hero,
       weekStrip(st),
-      learnFirst ? [learn, hero] : [hero, learn],
-      h('section', { class: 'modes' },
-        modeCard('mix', '🎯', 'Smart Practice', 'Ten questions aimed at your weak spots', () => startPractice('mix')),
-        modeCard('find', '🔎', 'Chord & Scale Finder', 'See and hear any chord or scale', () => explorer()))), 'today');
+      learnTeaser(st)), 'today');
     if (hero.__dispose) disposers.push(hero.__dispose);
   }
 
@@ -266,7 +261,8 @@
     const st = S.load();
     show(h('main', { class: 'practice' },
       topbar(),
-      h('h1', null, 'Practice'),
+      h('h1', null, 'Practice & Tools'),
+      h('h2', { class: 'eyebrow' }, 'Practice'),
       h('button', { class: 'feature', onclick: () => { A.unlock(); startPractice('mix'); } },
         h('span', { class: 'feature-ico', 'aria-hidden': 'true' }, '🎯'),
         h('span', { class: 'feature-main' }, h('strong', null, 'Smart Practice'), h('span', null, 'Ten questions picked from what you miss most, then a second chance at any you get wrong.')),
@@ -280,11 +276,15 @@
           h('span', { class: 'skill-lv' }, 'Lv ' + info.level),
           h('span', { class: 'bar' }, h('i', { style: { width: Math.round(info.pct * 100) + '%' } })));
       })),
-      h('h2', { class: 'eyebrow' }, 'Games and tools'),
-      h('section', { class: 'modes three' },
+      h('h2', { class: 'eyebrow' }, 'Games'),
+      h('section', { class: 'modes' },
         modeCard('surv', '❤️', 'Survival', st.survivalBest ? `Three lives. Best run: ${st.survivalBest}` : 'Three lives. It keeps getting harder', startSurvival),
-        modeCard('deep', '💿', 'Deep Cut', 'Many right answers. Go niche', startDeepFree),
-        modeCard('find', '🔎', 'Finder', 'Any chord or scale, on piano and guitar', () => explorer()))), 'practice');
+        modeCard('deep', '💿', 'Deep Cut', 'Many right answers. Go niche', startDeepFree)),
+      h('h2', { class: 'eyebrow' }, 'Tools'),
+      h('button', { class: 'tool', onclick: () => { A.unlock(); explorer(); } },
+        h('span', { class: 'tool-ico', 'aria-hidden': 'true' }, '🔎'),
+        h('span', { class: 'feature-main' }, h('strong', null, 'Chord & Scale Finder'), h('span', null, 'Pick any chord or scale to see it on piano and guitar and hear how it sounds.')),
+        h('span', { class: 'teaser-go', 'aria-hidden': 'true' }, '›'))), 'practice');
     onKey = (e) => { if (e.key === 'Escape') home(); };
   }
 
@@ -318,59 +318,137 @@
   const starCount = (rec) => (!rec ? 0 : rec.best >= rec.total ? 3 : rec.best >= rec.total * 0.6 ? 2 : 1);
   const starRow = (n) => h('span', { class: 'stars', 'aria-label': n + ' of 3 stars' }, [0, 1, 2].map((i) => h('i', { class: i < n ? 'on' : '' }, '★')));
 
-  // The Learn tab: a winding path of lessons, grouped into four chapters.
+  // ---------- the island map ----------
+  // A coastline for each island: points around an ellipse, nudged by the island's seed, joined smoothly.
+  const IW = 340, IH = 250;
+  function coast(seed) {
+    const rng = T.makeRng(seed * 7919);
+    const N = 10, cx = IW / 2, cy = IH / 2 + 6, rx = IW / 2 - 22, ry = IH / 2 - 26;
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + rng() * 0.25;
+      const k = 0.84 + rng() * 0.18;
+      pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+    }
+    let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+    for (let i = 0; i < N; i++) {
+      const p0 = pts[(i - 1 + N) % N], p1 = pts[i], p2 = pts[(i + 1) % N], p3 = pts[(i + 2) % N];
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ` C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+    }
+    return d + 'Z';
+  }
+  // where the three lesson stops and the landmark sit on an island (in % of the island box)
+  const LAYOUTS = [
+    { stops: [[24, 56], [50, 33], [76, 56]], mark: [50, 74] },
+    { stops: [[24, 38], [50, 60], [76, 38]], mark: [50, 17] },
+  ];
+
+  // The Learn tab: a sea of islands, one per chapter, each unlocked by finishing the one before.
   function lessons() {
     const st = S.load();
+    const isl = S.islands();
     const next = L.LESSONS.find((l) => !st.lessons[l.id]);
+    const curCi = next ? CHAPTERS.findIndex((ch) => ch.ids.includes(next.id)) : -1;
     const doneN = L.LESSONS.filter((l) => st.lessons[l.id]).length;
-    const PW = 320, ROW = 108, R = 36;
-    let nextEl = null;
-    const chapters = CHAPTERS.map((ch, ci) => {
-      const list = ch.ids.map((id) => L.byId(id));
-      const chDone = list.filter((l) => st.lessons[l.id]).length;
-      const pct = Math.round((chDone / list.length) * 100);
-      const xs = list.map((_, i) => PW / 2 + ((i + ci) % 2 === 0 ? -70 : 70));
-      const ys = list.map((_, i) => i * ROW + 20 + R);
-      let d = '';
-      for (let i = 0; i < list.length - 1; i++) {
-        const my = (ys[i] + ys[i + 1]) / 2;
-        d += `M${xs[i]} ${ys[i]} C${xs[i]} ${my} ${xs[i + 1]} ${my} ${xs[i + 1]} ${ys[i + 1]} `;
+    const stars = L.LESSONS.reduce((s, l) => s + starCount(st.lessons[l.id]), 0);
+    const openN = isl.filter((o) => o.open).length;
+    const trophies = isl.filter((o) => o.complete).length;
+    let curEl = null, freshEl = null;
+
+    const items = [];
+    CHAPTERS.forEach((ch, ci) => {
+      const info = isl[ci];
+      const side = ci % 2 === 0 ? 'l' : 'r';
+      const lay = LAYOUTS[ci % 2];
+      const isCur = ci === curCi;
+      // the route from the previous island, with the boat docked on the way in to the current one
+      if (ci > 0 || isCur) {
+        const from = ci === 0 ? 50 : side === 'l' ? 72 : 28, to = side === 'l' ? 30 : 70;
+        const route = `<svg viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true"><path d="M${from} 0 C${from} 34 ${to} 26 ${to} 60" vector-effect="non-scaling-stroke"/></svg>`;
+        const deco = { 2: '🐬', 5: '🐋' }[ci];
+        items.push(h('div', { class: 'route' + (info.open ? ' open' : ''), style: { '--from': from + '%', '--to': to + '%' } },
+          h('div', { class: 'route-line', html: route }),
+          deco ? h('span', { class: 'route-deco ' + side, 'aria-hidden': 'true' }, deco) : null,
+          isCur ? h('span', { class: 'boat' + (info.fresh && !reduced ? ' sail' : ''), 'aria-hidden': 'true' }, '⛵') : null));
       }
-      const nodes = list.map((les, i) => {
+
+      const lessonsHere = ch.ids.map((id) => L.byId(id));
+      const stops = lessonsHere.map((les, i) => {
         const rec = st.lessons[les.id];
         const n = L.LESSONS.indexOf(les) + 1;
         const state = rec ? 'done' : les === next ? 'cur' : 'todo';
-        const left = xs[i] < PW / 2;
-        const btn = h('button', { class: 'node ' + state, style: { left: xs[i] - R + 'px', top: ys[i] - R + 'px' },
-          'aria-label': `Lesson ${n}: ${les.title}${rec ? ', completed' : les === next ? ', up next' : ''}`, onclick: () => lessonSheet(les) },
-        h('span', { class: 'node-ico', 'aria-hidden': 'true' }, les.icon),
-        rec ? h('span', { class: 'node-check', 'aria-hidden': 'true' }, '✓') : null,
-        les === next ? h('span', { class: 'node-start', 'aria-hidden': 'true' }, 'Start') : null);
-        if (les === next) nextEl = btn;
-        const label = h('div', { class: 'node-label ' + (left ? 'r' : 'l'), style: left ? { left: xs[i] + R + 14 + 'px', top: ys[i] - 26 + 'px' } : { right: PW - xs[i] + R + 14 + 'px', top: ys[i] - 26 + 'px' } },
-          h('span', { class: 'eyebrow' }, 'Lesson ' + n), h('strong', null, les.title), rec ? starRow(starCount(rec)) : null);
-        return [btn, label];
+        const [x, y] = lay.stops[i];
+        return h('div', { class: 'stop ' + state, style: { left: x + '%', top: y + '%' } },
+          h('button', { class: 'stop-btn', tabindex: info.open ? null : '-1',
+            'aria-label': `Lesson ${n}: ${les.title}${rec ? `, completed, ${starCount(rec)} of 3 stars` : les === next ? ', up next' : ''}`,
+            onclick: (e) => { e.stopPropagation(); if (info.open) lessonSheet(les); else lockedTap(ci); } },
+          h('span', { class: 'stop-ico', 'aria-hidden': 'true' }, les.icon),
+          rec ? h('span', { class: 'stop-check', 'aria-hidden': 'true' }, '✓') : null,
+          les === next && info.open ? h('span', { class: 'stop-start', 'aria-hidden': 'true' }, 'Start') : null),
+          h('span', { class: 'stop-label' }, h('b', null, les.title), rec ? starRow(starCount(rec)) : null));
       });
-      const line = `<svg viewBox="0 0 ${PW} ${list.length * ROW}" aria-hidden="true"><path d="${d}"/></svg>`;
-      const ring = h('div', { class: 'ring', 'aria-label': `${chDone} of ${list.length} lessons done` }, h('b', null, chDone === list.length ? '🏆' : `${chDone}/${list.length}`));
-      ring.style.setProperty('--p', pct);
-      return h('section', { class: 'chapter' + (chDone === list.length ? ' complete' : '') },
-        h('div', { class: 'chapter-head' },
-          h('div', null, h('span', { class: 'eyebrow' }, 'Chapter ' + (ci + 1)), h('strong', null, ch.title), h('span', null, ch.blurb)),
-          ring),
-        h('div', { class: 'path', style: { height: list.length * ROW + 'px' } }, h('div', { class: 'path-line', html: line }), nodes));
+      const [s0, s1, s2] = lay.stops;
+      const trail = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M${s0[0]} ${s0[1]} Q${(s0[0] + s1[0]) / 2} ${s1[1]} ${s1[0]} ${s1[1]} T${s2[0]} ${s2[1]}" vector-effect="non-scaling-stroke"/></svg>`;
+      const land = `<svg viewBox="0 0 ${IW} ${IH}" aria-hidden="true">
+        <g transform="translate(${IW / 2} ${IH / 2}) scale(1.13 1.17) translate(${-IW / 2} ${-IH / 2})"><path class="shallows" d="${coast(ch.seed)}"/></g>
+        <path class="sand" d="${coast(ch.seed)}"/>
+        <g transform="translate(${IW / 2} ${IH / 2 - 4}) scale(.84 .8) translate(${-IW / 2} ${-IH / 2})"><path class="grass" d="${coast(ch.seed)}"/></g></svg>`;
+
+      const ring = h('div', { class: 'ring', 'aria-hidden': 'true' }, h('b', null, info.complete ? '🏆' : `${info.done}/${info.total}`));
+      ring.style.setProperty('--p', Math.round((info.done / info.total) * 100));
+      const prev = CHAPTERS[ci - 1];
+      const cls = 'isle ' + side + (info.open ? ' open' : ' locked') + (info.complete ? ' complete' : '') + (isCur ? ' cur' : '') + (info.fresh ? ' fresh' : '');
+      const el = h('section', { class: cls, style: { '--land': ch.land, '--land2': ch.land2 },
+        'aria-label': `Island ${ci + 1}: ${ch.isle}, ${ch.title}. ${info.open ? `${info.done} of ${info.total} lessons done` : 'Locked'}` },
+        h('div', { class: 'isle-head' },
+          h('div', null,
+            h('span', { class: 'eyebrow' }, `Island ${ci + 1} · ${ch.isle}`),
+            h('strong', null, ch.title),
+            h('span', null, info.open ? ch.blurb : `🔒 Finish ${prev ? prev.isle : 'the island before'} to unlock`)),
+          info.open ? ring : h('span', { class: 'lock-badge', 'aria-hidden': 'true' }, '🔒')),
+        h('div', { class: 'isle-land', onclick: () => { if (!info.open) lockedTap(ci); } },
+          h('div', { class: 'isle-svg', html: land }),
+          h('div', { class: 'isle-trail', html: trail }),
+          h('span', { class: 'isle-mark', style: { left: lay.mark[0] + '%', top: lay.mark[1] + '%' }, 'aria-hidden': 'true' }, ch.mark),
+          info.complete ? h('span', { class: 'isle-flag', 'aria-hidden': 'true' }, '🚩') : null,
+          stops,
+          info.open && !info.fresh ? null : h('div', { class: 'fog', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'),
+            h('span', { class: 'fog-lock' }, '🔒'))));
+      if (isCur) curEl = el;
+      if (info.fresh && !freshEl) freshEl = el;
+      items.push(el);
     });
+
+    function lockedTap(ci) {
+      const el = app.querySelectorAll('.isle')[ci];
+      if (el && !reduced) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); }
+      toast(`Finish ${CHAPTERS[ci - 1].isle} to sail to ${CHAPTERS[ci].isle}`);
+    }
+
     show(h('main', { class: 'lessons' },
       topbar(),
       h('div', { class: 'learn-head' },
         h('h1', null, 'Learn'),
-        h('p', { class: 'lead' }, doneN === L.LESSONS.length ? 'Every lesson done. Tap any of them to revisit it and chase the stars you are missing.' : `${doneN} of ${L.LESSONS.length} lessons done. Each one takes about three minutes.`),
+        h('p', { class: 'lead' }, doneN === L.LESSONS.length ? 'You have explored every island. Replay any lesson to chase the stars you are missing.'
+          : 'Sail from island to island. Finish all three lessons on an island to unlock the next one.'),
         h('div', { class: 'learn-stats' },
-          h('span', null, '⭐ ', h('b', null, String(L.LESSONS.reduce((s, l) => s + starCount(st.lessons[l.id]), 0))), ` / ${L.LESSONS.length * 3} stars`),
-          h('span', null, '🏆 ', h('b', null, String(CHAPTERS.filter((ch) => ch.ids.every((id) => st.lessons[id])).length)), ` / ${CHAPTERS.length} chapters`)),
+          h('span', null, '🏝️ ', h('b', null, String(openN)), ` / ${CHAPTERS.length} islands`),
+          h('span', null, '⭐ ', h('b', null, String(stars)), ` / ${L.LESSONS.length * 3} stars`),
+          h('span', null, '🏆 ', h('b', null, String(trophies)), ` / ${CHAPTERS.length} trophies`)),
         h('span', { class: 'bar' }, h('i', { style: { width: Math.round((doneN / L.LESSONS.length) * 100) + '%' } }))),
-      chapters), 'learn');
-    if (nextEl && L.LESSONS.indexOf(next) > 2) nextEl.scrollIntoView({ block: 'center' });
+      h('div', { class: 'sea' }, items)), 'learn');
+
+    // newly unlocked islands: lift the fog, then remember they have been seen
+    if (freshEl) {
+      const lift = () => app.querySelectorAll('.isle.fresh .fog').forEach((f) => f.classList.add('lift'));
+      if (reduced) lift(); else later(lift, 700);
+      later(() => toast(`🏝️ ${CHAPTERS[[...app.querySelectorAll('.isle')].indexOf(freshEl)].isle} unlocked!`), reduced ? 0 : 900);
+      S.markIslandsSeen();
+    }
+    const focus = freshEl || curEl;
+    if (focus && focus !== app.querySelector('.isle')) focus.scrollIntoView({ block: 'center' });
     onKey = (e) => { if (e.key === 'Escape') { if (document.querySelector('.sheet-wrap.modal')) document.querySelector('.sheet-wrap.modal').remove(); else home(); } };
   }
   // Tapping a lesson on the path opens this card.
@@ -1054,7 +1132,7 @@
     } else if (ses.mode === 'lesson') {
       const les = ses.lesson;
       const r = S.finishLesson(les.id, correct, totalQ);
-      const nextLes = L.LESSONS[L.LESSONS.indexOf(les) + 1];
+      let nextLes = L.LESSONS[L.LESSONS.indexOf(les) + 1];
       title = correct === totalQ ? 'Lesson mastered!' : correct >= totalQ * 0.6 ? 'Lesson complete!' : 'Lesson done — worth a second look.';
       score = correct; sub = `of ${totalQ} correct`;
       xpGain = r.first ? 40 + correct * 8 : correct * 4;
@@ -1067,17 +1145,21 @@
         xpGain += 60;
         lead = h('section', { class: 'prize' },
           h('span', { class: 'prize-ico', 'aria-hidden': 'true' }, '🏆'),
-          h('div', null, h('span', { class: 'eyebrow' }, `Chapter ${ci + 1} complete`), h('strong', null, '+60 XP'),
-            h('span', null, `You finished “${CHAPTERS[ci].title}”. ${CHAPTERS[ci + 1] ? 'Next chapter: ' + CHAPTERS[ci + 1].title + '.' : 'That was the last chapter — you have finished the whole path.'}`)));
+          h('div', null, h('span', { class: 'eyebrow' }, `${CHAPTERS[ci].isle} explored`), h('strong', null, '+60 XP'),
+            h('span', null, `You finished “${CHAPTERS[ci].title}”. ${CHAPTERS[ci + 1] ? `${CHAPTERS[ci + 1].mark} ${CHAPTERS[ci + 1].isle} is now open — set sail from the map.` : 'That was the last island — you have explored the whole map.'}`)));
         party = true;
       }
+      // never offer a lesson on an island that is still locked
+      const islNow = S.islands();
+      const isleOf = (l) => CHAPTERS.findIndex((ch) => ch.ids.includes(l.id));
+      if (nextLes && !islNow[isleOf(nextLes)].open) nextLes = L.LESSONS.find((l) => !lessonsNow[l.id]);
       const totalStars = L.LESSONS.reduce((s, l) => s + starCount(lessonsNow[l.id]), 0);
       S.setStars(totalStars);
       tiles = [tile('mint', 'Correct', `${correct}/${totalQ}`), fixedTile, tile('yellow', 'Lessons', `${Object.keys(S.load().lessons).length}/${L.LESSONS.length}`)];
       primary = h('div', { class: 'actions' },
         nextLes ? h('button', { class: 'btn big', onclick: () => lesson(nextLes, 0) }, `Next: ${nextLes.title}`) : h('button', { class: 'btn big', onclick: home }, 'Back home'),
         correct < totalQ ? h('button', { class: 'ghost', onclick: () => lesson(les, 0) }, 'Review this lesson') : null,
-        h('button', { class: 'ghost', onclick: lessons }, 'Back to the path'));
+        h('button', { class: 'ghost', onclick: lessons }, 'Back to the map'));
       party = party || correct >= totalQ * 0.6;
     } else if (ses.mode === 'practice') {
       title = correct === totalQ ? 'Flawless.' : correct >= totalQ * 0.7 ? 'Good session.' : 'That’s how you learn.';

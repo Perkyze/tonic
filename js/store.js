@@ -190,6 +190,38 @@
     save();
     return true;
   }
+  // ---------- islands on the Learn map ----------
+  // An island opens when the one before it is complete. Your level gives a head start,
+  // and an island stays open once it has been opened (or once you have progress on it or past it).
+  const HEAD_START = { beginner: 1, intermediate: 4, advanced: 8 };
+  function islands() {
+    const st = load();
+    const CH = root.Lessons.CHAPTERS;
+    st.islands = st.islands || {};
+    const out = CH.map((ch) => {
+      const done = ch.ids.filter((id) => st.lessons[id]).length;
+      return { done, total: ch.ids.length, complete: done === ch.ids.length, open: false, fresh: false };
+    });
+    let furthest = -1;
+    out.forEach((o, i) => { if (o.done) furthest = i; });
+    let changed = false;
+    out.forEach((o, i) => {
+      o.open = !!st.islands[i] || i < (HEAD_START[st.tier] || 1) || i <= furthest || (i > 0 && out[i - 1].complete);
+      if (o.open && !st.islands[i]) { st.islands[i] = today(); changed = true; }
+    });
+    // islands opened since the map was last seen get their fog-lifting moment
+    if (!st.islandsSeen) { st.islandsSeen = {}; out.forEach((o, i) => { if (o.open) st.islandsSeen[i] = 1; }); changed = true; }
+    out.forEach((o, i) => { o.fresh = o.open && !st.islandsSeen[i]; });
+    if (changed) save();
+    return out;
+  }
+  function markIslandsSeen() {
+    const st = load();
+    st.islandsSeen = st.islandsSeen || {};
+    Object.keys(st.islands || {}).forEach((i) => { st.islandsSeen[i] = 1; });
+    save();
+  }
+
   function setStars(n) { const c = load().counters; c.stars = Math.max(c.stars || 0, n); save(); }
   function finishLesson(id, correct, total) {
     const st = load();
@@ -209,7 +241,7 @@
 
   root.Store = {
     load, save, reset, today, dateStr, dayNumber, msToMidnight, levelInfo, skillInfo, liveStreak,
-    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, addDailyDeep, finishLesson, completeChapter, setStars, recordSurvival, ACH,
+    recordAnswer, checkAchievements, addXp, recordDeep, finishDaily, addDailyDeep, finishLesson, completeChapter, setStars, recordSurvival, islands, markIslandsSeen, ACH,
     todayResult: () => load().daily[today()] || null,
   };
 })(window);
