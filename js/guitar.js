@@ -55,6 +55,8 @@
     return out;
   }
   const where = (p) => `${ORD[p.s]} string ${p.f === 0 ? 'open' : 'fret ' + p.f}`;
+  // Display name of an open string (OPEN itself stays English — it is the answer key).
+  const openName = (s) => T.nm(OPEN[s]);
 
-  root.Guitar = { TUNING, OPEN, ORD, SHAPES, shapeFor, shapeById, midiAt, pcAt, shapeMidis, shapeText, shapeNotes, strum, pluck, positions, where };
+  root.Guitar = { TUNING, OPEN, openName, ORD, SHAPES, shapeFor, shapeById, midiAt, pcAt, shapeMidis, shapeText, shapeNotes, strum, pluck, positions, where };
 })(typeof window !== 'undefined' ? window : globalThis);

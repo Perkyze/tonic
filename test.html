@@ -12,6 +12,9 @@
    one correct answer, no duplicate options, clean spellings, sane audio. */
 (function () {
   const T = Theory, Q = Questions;
+  // test.html?naming=both (or fr) runs everything with that note-name setting
+  const naming = new URLSearchParams(location.search).get('naming') || 'en';
+  T.setNaming(naming);
   const errs = [], stats = {};
   const fail = (id, d, msg, q) => { if (errs.length < 60) errs.push(`${id} d${d}: ${msg}` + (q ? ' | ' + q.prompt + ' -> ' + q.answerText : '')); };
   let total = 0;
@@ -26,6 +29,7 @@
         keys.add(q.key);
         if (!q.prompt || !q.explain || !q.answerText || !q.key) fail(g.id, d, 'missing field', q);
         if (/undefined|NaN|null/.test(q.prompt + q.explain + q.answerText + (q.sub || ''))) fail(g.id, d, 'bad text: ' + q.explain, q);
+        if (/[{}]/.test(q.prompt + q.explain + q.answerText + (q.sub || '') + (q.hint || ''))) fail(g.id, d, 'unconverted note token: ' + q.explain + ' / ' + q.hint, q);
         const inp = q.input;
         if (inp.kind === 'choice') {
           const labels = inp.options.map((o) => o.label);
@@ -96,6 +100,8 @@
     }
     les.cards.forEach((c, i) => {
       if (!c.h || !c.p) fail('lesson', 0, les.id + ' card ' + i + ' missing text');
+      const words = [les.title, les.blurb, c.h, c.p, c.al || '', (c.v && c.v.big) || ''].concat(c.v && c.v.items ? c.v.items.map((it) => it.cap || '') : []).join(' ');
+      if (/[{}]/.test(words)) fail('lesson', 0, les.id + ' card ' + i + ' unconverted note token: ' + words);
       const vs = !c.v ? [] : c.v.kind === 'row' ? c.v.items.map((it) => it.v) : [c.v];
       vs.forEach((v) => {
         if (v.kind === 'piano') v.marks.forEach((m) => { if (m < v.lo || m > v.hi) fail('lesson', 0, les.id + ' card ' + i + ' mark off keyboard'); });
@@ -110,7 +116,27 @@
     if (Q.daily('2028-01-' + day, tier).some((q) => q.skill === 'guitar')) fail('daily', tier, 'guitar question while guitar is off');
   });
   Q.setGuitar(true);
-  const out = { total, dailies, lessonQs, shapes: Guitar.SHAPES.length, errors: errs, variety: stats };
+  // The note-name setting changes wording only: the same seed must give the same question,
+  // the same answer and the same number of options in every setting.
+  let crossChecked = 0;
+  const answerShape = (q) => JSON.stringify([q.key, q.input.kind, q.input.answer, (q.input.options || []).length, q.input.targetPcs, q.input.targetMidis, q.input.targetPc,
+    (q.input.options || []).map((o) => !!o.audio), q.audio, q.audioAfter]);
+  Q.GENS.forEach((g) => {
+    for (let d = g.min; d <= g.max; d++) {
+      for (let i = 0; i < 80; i++) {
+        const seed = 'x:' + g.id + ':' + d + ':' + i;
+        const shapes = T.NAMINGS.map((nmode) => { T.setNaming(nmode); return answerShape(Q.make(g, T.makeRng(seed), d)); });
+        if (shapes.some((s) => s !== shapes[0])) fail(g.id, d, 'question differs between note-name settings');
+        crossChecked++;
+      }
+    }
+  });
+  ['beginner', 'intermediate', 'advanced'].forEach((tier) => {
+    const sets = T.NAMINGS.map((nmode) => { T.setNaming(nmode); return Q.daily('2027-03-14', tier).map(answerShape).join('|'); });
+    if (sets.some((s) => s !== sets[0])) fail('daily', tier, 'daily set differs between note-name settings');
+  });
+  T.setNaming(naming);
+  const out = { naming, total, dailies, lessonQs, crossChecked, shapes: Guitar.SHAPES.length, errors: errs, variety: stats };
   window.__fuzz = out;
   document.getElementById('out').textContent = JSON.stringify(out, null, 1);
 })();

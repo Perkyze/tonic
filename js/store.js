@@ -9,6 +9,7 @@
     v: 1, tier: null, sound: true, xp: 0,
     guitar: true,      // include guitar questions outside the Guitar track
     keyLabels: false,  // print note names on the tap-the-keyboard rounds
+    naming: 'en',      // how note names are written: 'en' (C D E), 'both' (C do), 'fr' (do ré mi)
     streak: { count: 0, best: 0, last: null },
     daily: {}, skills: {}, items: {}, ach: {}, lessons: {},
     counters: { correct: 0, answered: 0, ear: 0, build: 0, guitar: 0, fast: 0, bestCombo: 0, dailies: 0, perfects: 0, deepBest: 0, deepRound: 0, lessons: 0, hints: 0 },
@@ -190,9 +191,9 @@
     save();
     return true;
   }
-  // ---------- islands on the Learn map ----------
-  // An island opens when the one before it is complete. Your level gives a head start,
-  // and an island stays open once it has been opened (or once you have progress on it or past it).
+  // ---------- chapters on the Learn trail (stored as "islands" for older saves) ----------
+  // A chapter opens when the one before it is complete. Your level gives a head start,
+  // and a chapter stays open once it has been opened (or once you have progress on it or past it).
   const HEAD_START = { beginner: 1, intermediate: 4, advanced: 8 };
   function islands() {
     const st = load();
@@ -209,7 +210,7 @@
       o.open = !!st.islands[i] || i < (HEAD_START[st.tier] || 1) || i <= furthest || (i > 0 && out[i - 1].complete);
       if (o.open && !st.islands[i]) { st.islands[i] = today(); changed = true; }
     });
-    // islands opened since the map was last seen get their fog-lifting moment
+    // chapters opened since the trail was last seen get a short "now open" moment
     if (!st.islandsSeen) { st.islandsSeen = {}; out.forEach((o, i) => { if (o.open) st.islandsSeen[i] = 1; }); changed = true; }
     out.forEach((o, i) => { o.fresh = o.open && !st.islandsSeen[i]; });
     if (changed) save();

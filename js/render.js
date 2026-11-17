@@ -11,6 +11,25 @@
     return e;
   }
 
+  // A note label as SVG text. "F♯ fa♯" (the English + French naming) is stacked on two lines,
+  // the French name smaller; long single names (sol♯) get a smaller font so they fit a key or dot.
+  // lineH: gap between the two lines; the block is centred on y unless top is true (then y is the first line).
+  function label(parent, x, y, text, cls, lineH, top) {
+    const t = el('text', { x, y, class: cls, 'text-anchor': 'middle' }, parent);
+    const parts = String(text).split(' ');
+    if (parts.length === 2 && !/\d/.test(text)) {
+      const y0 = top ? y : y - lineH / 2;
+      t.setAttribute('y', y0);
+      t.setAttribute('class', cls + ' two');
+      el('tspan', { x, y: y0 }, t).textContent = parts[0];
+      el('tspan', { x, y: y0 + lineH, class: 'sub' }, t).textContent = parts[1];
+    } else {
+      if ([...String(text)].length >= 4) t.setAttribute('class', cls + ' long');
+      t.textContent = text;
+    }
+    return t;
+  }
+
   // ---------- piano ----------
   // opts: lo (a C), hi (a B), state: {midi: 'mark'|'given'|'sel'|'good'|'bad'|'miss'},
   //       labels: {midi: text}, onKey(midi)
@@ -44,15 +63,15 @@
         const lab = labels && labels[m];
         if (lab) {
           const cx = xOf[m] + (black ? BW : WW) / 2;
-          const t = el('text', { x: cx, y: black ? BH - 9 : WH - 10, class: 'klabel' + (black ? ' on-black' : '') + (st ? ' l-' + st : ''), 'text-anchor': 'middle' }, gL);
-          t.textContent = lab;
+          const two = String(lab).indexOf(' ') > 0;
+          label(gL, cx, (black ? BH - 9 : WH - 10) - (two ? (black ? 8 : 10) : 0), lab, 'klabel' + (black ? ' on-black' : '') + (st ? ' l-' + st : ''), black ? 8 : 10, true);
         } else if (st && st !== 'sel') {
           const cx = xOf[m] + (black ? BW : WW) / 2;
           el('circle', { cx, cy: black ? BH - 13 : WH - 15, r: black ? 3.5 : 4.5, class: 'kdot d-' + st }, gL);
         } else if (!black && (opts.labelAll || (opts.hintC && m % 12 === 0))) {
           // quiet landmarks so you can find your way around
-          const t = el('text', { x: xOf[m] + WW / 2, y: WH - 8, class: 'khint' + (st ? ' on-sel' : ''), 'text-anchor': 'middle' }, gL);
-          t.textContent = T.PC_SHARP[m % 12];
+          const nm = T.pcName(m % 12);
+          label(gL, xOf[m] + WW / 2, WH - 8 - (nm.indexOf(' ') > 0 ? 9 : 0), nm, 'khint' + (st ? ' on-sel' : ''), 9, true);
         }
       }
     };
@@ -145,7 +164,8 @@
   function chordBox(frets, opts) {
     opts = opts || {};
     const L = 24, SPX = 17, TOPY = 32, FH = 23, NF = 4;
-    const W = L * 2 + 5 * SPX, Hh = TOPY + NF * FH + (opts.notes ? 28 : 12);
+    const twoLine = opts.notes && opts.notes.some((x) => x && String(x).indexOf(' ') > 0);
+    const W = L * 2 + 5 * SPX, Hh = TOPY + NF * FH + (opts.notes ? (twoLine ? 38 : 28) : 12);
     const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chordbox', role: 'img', 'aria-label': 'Guitar chord diagram: ' + frets.map((f) => (f < 0 ? 'x' : f)).join(' ') });
     el('rect', { x: L - 1.5, y: TOPY - 5, width: 5 * SPX + 3, height: 5.5, rx: 1.5, class: 'cb-nut' }, svg);
     for (let k = 1; k <= NF; k++) el('line', { x1: L, x2: L + 5 * SPX, y1: TOPY + k * FH, y2: TOPY + k * FH, class: 'cb-fret' }, svg);
@@ -156,8 +176,7 @@
       else if (f === 0) el('circle', { cx: x, cy: TOPY - 15, r: 4.2, class: 'cb-open' }, svg);
       else el('circle', { cx: x, cy: TOPY + (f - 0.5) * FH, r: 6.8, class: 'cb-dot' }, svg);
       if (opts.notes && opts.notes[i]) {
-        const t = el('text', { x, y: TOPY + NF * FH + 18, class: 'cb-note', 'text-anchor': 'middle' }, svg);
-        t.textContent = opts.notes[i];
+        label(svg, x, TOPY + NF * FH + 18, opts.notes[i], 'cb-note', 10, true);
       }
     });
     return { el: svg };
@@ -199,11 +218,16 @@
         if (d.f !== 0 && (d.f < from || d.f > to)) return;
         if (d.f === 0 && !hasOpen) return;
         const r = fw < 40 ? 7.2 : 8.2;
-        el('circle', { cx: xOf(d.f), cy: yOf(d.s), r, class: 'fdot' + (d.cls ? ' d-' + d.cls : '') + (d.f === 0 ? ' open' : '') }, gD);
-        if (d.label) {
-          const t = el('text', { x: xOf(d.f), y: yOf(d.s) + 3, class: 'flabel' + (d.cls ? ' l-' + d.cls : ''), 'text-anchor': 'middle' }, gD);
-          t.textContent = d.label;
-        }
+        const cls = 'fdot' + (d.cls ? ' d-' + d.cls : '') + (d.f === 0 ? ' open' : '');
+        const text = d.label ? String(d.label) : '';
+        const two = text.indexOf(' ') > 0;
+        const longest = Math.max(0, ...text.split(' ').map((p) => [...p].length));
+        // a name that does not fit in the round dot gets a rounded tag instead (sol♯, or F♯ over fa♯)
+        if (two || longest >= 4) {
+          const w = Math.min(fw - 3, Math.max(2 * r, longest * (two ? 4.4 : 4.6) + 5)), hh = two ? SPY - 1 : 2 * r;
+          el('rect', { x: xOf(d.f) - w / 2, y: yOf(d.s) - hh / 2, width: w, height: hh, rx: Math.min(r, hh / 2), class: cls }, gD);
+        } else el('circle', { cx: xOf(d.f), cy: yOf(d.s), r, class: cls }, gD);
+        if (text) label(gD, xOf(d.f), two ? yOf(d.s) + 2.5 : yOf(d.s) + 3, text, 'flabel' + (d.cls ? ' l-' + d.cls : ''), 7.2, false);
       });
     };
     api.set(opts.dots);
