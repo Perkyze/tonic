@@ -9,6 +9,7 @@
     v: 1, tier: null, sound: true, xp: 0,
     guitar: true,      // include guitar questions outside the Guitar track
     keyLabels: false,  // print note names on the tap-the-keyboard rounds
+    naming: 'en',      // how note names are written: 'en' (C D E), 'both' (C do), 'fr' (do ré mi)
     streak: { count: 0, best: 0, last: null },
     daily: {}, skills: {}, items: {}, ach: {}, lessons: {},
     counters: { correct: 0, answered: 0, ear: 0, build: 0, guitar: 0, fast: 0, bestCombo: 0, dailies: 0, perfects: 0, deepBest: 0, deepRound: 0, lessons: 0, hints: 0 },

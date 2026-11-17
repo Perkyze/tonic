@@ -683,9 +683,12 @@
     if (inp.kind === 'choice') {
       const letters = inp.layout === 'letters';
       const long = inp.options.some((o) => o.label.length > 15);
-      optBtns = inp.options.map((o, i) => h('button', { class: 'opt', onclick: () => pick(i) },
-        letters ? null : h('kbd', null, String(i + 1)), h('span', null, o.label)));
-      answersEl = h('div', { class: 'opts' + (letters ? ' letters' : long || inp.layout === 'one' || inp.options.length < 3 ? ' one' : '') }, optBtns);
+      // the seven note-name buttons stack "C" over "do" in the English + French setting
+      const named = letters && T.getNaming() !== 'en';
+      const letterLabel = (lab) => { const [a, b] = lab.split(' '); return b ? h('span', { class: 'nn' }, a, h('small', null, b)) : h('span', null, lab); };
+      optBtns = inp.options.map((o, i) => h('button', { class: 'opt', onclick: () => pick(i), 'aria-label': o.label },
+        letters ? null : h('kbd', null, String(i + 1)), letters ? letterLabel(o.label) : h('span', null, o.label)));
+      answersEl = h('div', { class: 'opts' + (letters ? ' letters' + (named ? ' named' : '') : long || inp.layout === 'one' || inp.options.length < 3 ? ' one' : '') }, optBtns);
     } else if (inp.kind === 'fret') {
       fbApi = R.fretboard({ from: inp.from, to: inp.to, dots: [], onFret: (s, f) => {
         if (done) return;
@@ -814,8 +817,8 @@
     function checkFret() {
       if (done || !fretPick) return;
       const ok = GT.pcAt(fretPick.s, fretPick.f) === inp.targetPc;
-      const dots = GT.positions(inp.targetPc, 0, inp.to).map((p) => ({ s: p.s, f: p.f, cls: 'good', label: T.PC_SHARP[inp.targetPc] }));
-      if (!ok) dots.push({ s: fretPick.s, f: fretPick.f, cls: 'bad', label: T.PC_SHARP[GT.pcAt(fretPick.s, fretPick.f)] });
+      const dots = GT.positions(inp.targetPc, 0, inp.to).map((p) => ({ s: p.s, f: p.f, cls: 'good', label: T.pcName(inp.targetPc) }));
+      if (!ok) dots.push({ s: fretPick.s, f: fretPick.f, cls: 'bad', label: T.pcName(GT.pcAt(fretPick.s, fretPick.f)) });
       fbApi.set(dots);
       checkBtn.disabled = true;
       finish(ok, {});
@@ -966,7 +969,7 @@
     round.given.forEach((p, i) => { labels0[60 + p] = round.givenNames[i]; });
 
     const rootBtns = T.PC_SHARP.map((nm, p) => h('button', { class: 'pk' + (T.IS_BLACK[p] ? ' blk' : ''), onclick: () => { root = p; sync(); A.note(60 + p, 0.35); } },
-      T.IS_BLACK[p] ? [h('span', null, T.PC_SHARP[p]), h('span', null, T.PC_FLAT[p])] : nm));
+      T.IS_BLACK[p] ? [h('span', null, T.pcName(p)), h('span', null, T.pcName(p, 'flat'))] : T.pcName(p)));
     const typeBtns = round.types.map((t) => h('button', { class: 'pk ty', onclick: () => { type = t.id; sync(); A.sfx('tap'); } }, h('strong', null, t.label), h('span', null, t.sub)));
     const lockBtn = h('button', { class: 'btn big', disabled: true, onclick: () => lock() }, 'Lock in');
     const slots = [0, 1, 2].map((i) => h('li', { class: 'slot' }, h('span', { class: 'slot-n' }, String(i + 1)), h('span', { class: 'slot-empty' }, 'Pick ' + (i + 1))));
@@ -1017,7 +1020,7 @@
         slot.className = 'slot hit';
         slot.append(h('span', { class: 'slot-n' }, String(picks.length + 1)),
           h('div', { class: 'slot-main' },
-            h('strong', null, a.label), h('span', { class: 'slot-notes' }, a.notes.map(T.fmt).join(' – ')),
+            h('strong', null, a.label), h('span', { class: 'slot-notes' }, T.spell(a.notes)),
             h('div', { class: 'meter' }, fill), h('em', null, DC.verdict(a.score))),
           h('span', { class: 'slot-pts' }, '+' + a.score));
         requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = a.score + '%'; }));
@@ -1029,7 +1032,7 @@
         slot.className = 'slot miss';
         slot.append(h('span', { class: 'slot-n' }, String(picks.length + 1)),
           h('div', { class: 'slot-main' },
-            h('strong', null, c.label), h('span', { class: 'slot-notes' }, c.notes.map(T.fmt).join(' – ')),
+            h('strong', null, c.label), h('span', { class: 'slot-notes' }, T.spell(c.notes)),
             h('em', null, `No ${c.missing.join(' or ')} in there`)),
           h('span', { class: 'slot-pts' }, '0'));
         sfx('bad');
@@ -1049,7 +1052,7 @@
       const board = h('section', { class: 'board' },
         h('h3', null, `${round.answers.length} ${round.noun}s would have worked`),
         h('p', { class: 'sub' }, 'Most obvious: ', h('b', null, obvious.label), ' · Deepest cut: ', h('b', null, deepest.label)),
-        h('div', { class: 'board-list' }, sorted.map((a) => h('span', { class: 'ans' + (mine.has(a.label) ? ' mine' : ''), title: a.notes.map(T.fmt).join(' – ') }, a.label, h('b', null, String(a.score))))),
+        h('div', { class: 'board-list' }, sorted.map((a) => h('span', { class: 'ans' + (mine.has(a.label) ? ' mine' : ''), title: T.spell(a.notes) }, a.label, h('b', null, String(a.score))))),
         h('button', { class: 'btn big', onclick: () => opts.onDone(total, best, picks) }, opts.daily ? 'See results' : 'Finish'));
       pickers.replaceWith(board);
       onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); opts.onDone(total, best, picks); } };
@@ -1226,7 +1229,7 @@
       buildTypes(); render();
     } }, label));
     const rootBtns = T.PC_SHARP.map((nm, p) => h('button', { class: 'pk' + (T.IS_BLACK[p] ? ' blk' : ''), onclick: () => { state.root = p; render(true); } },
-      T.IS_BLACK[p] ? [h('span', null, T.PC_SHARP[p]), h('span', null, T.PC_FLAT[p])] : nm));
+      T.IS_BLACK[p] ? [h('span', null, T.pcName(p)), h('span', null, T.pcName(p, 'flat'))] : T.pcName(p)));
     const typeBox = h('div', { class: 'chips-wrap' });
     let typeBtns = [];
     function buildTypes() {
@@ -1284,7 +1287,7 @@
       out.append(
         h('div', { class: 'found-head' },
           h('h2', null, name),
-          h('p', { class: 'found-notes' }, notes.map(T.fmt).join(' – ')),
+          h('p', { class: 'found-notes' }, T.spell(notes)),
           h('p', { class: 'sub' }, isScale ? cap(def.feel) + '.' : `Formula ${def.formula} — ${def.feel}.`)),
         h('div', { class: 'found-block' },
           h('div', { class: 'found-top' }, h('h3', { class: 'eyebrow' }, 'Piano'), h('button', { class: 'ghost small', onclick: () => A.play(pianoAudio()) }, speaker(), 'Play')),
@@ -1314,12 +1317,50 @@
   // =====================================================================
   function switchRow(title, sub, key, after) {
     const st = S.load();
-    return h('div', { class: 'set' }, h('div', null, h('strong', null, title), h('span', null, sub)),
+    return h('div', { class: 'set set-' + key.toLowerCase() }, h('div', null, h('strong', null, title), h('span', null, sub)),
       h('button', { class: 'switch' + (st[key] ? ' on' : ''), role: 'switch', 'aria-checked': st[key] ? 'true' : 'false', 'aria-label': title, onclick: (e) => {
         st[key] = !st[key]; S.save();
         e.currentTarget.classList.toggle('on', st[key]); e.currentTarget.setAttribute('aria-checked', st[key] ? 'true' : 'false');
         if (after) after(st[key]);
       } }, h('i')));
+  }
+  const keyLabelsText = () => `Print ${T.spell(T.LETTERS, ' ')} on the keyboard when you build chords and scales`;
+  // How note names are written everywhere in Tonic. Only the display changes; answers are checked the same way.
+  const NAMING_OPTS = [
+    { id: 'en', name: 'English', eg: 'C D F♯ B♭' },
+    { id: 'both', name: 'English + French', eg: 'C do · F♯ fa♯' },
+    { id: 'fr', name: 'French', eg: 'do ré fa♯ si♭' },
+  ];
+  function namingRow() {
+    const st = S.load();
+    const cur = () => st.naming || 'en';
+    const btns = NAMING_OPTS.map((o) => h('button', { class: 'nmopt', role: 'radio', 'data-id': o.id, onclick: () => choose(o.id) },
+      h('strong', null, o.name), h('span', null, o.eg)));
+    const sync = () => btns.forEach((b) => {
+      const on = b.getAttribute('data-id') === cur();
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
+    });
+    function choose(id) {
+      if (id === cur()) return;
+      st.naming = id; S.save();
+      T.setNaming(id);
+      sync();
+      // the "Note names on keys" line names the notes, so refresh it in place (no jump to the top)
+      const kl = document.querySelector('.set-keylabels span');
+      if (kl) kl.textContent = keyLabelsText();
+      A.sfx('tap');
+    }
+    sync();
+    return h('div', { class: 'set set-naming' },
+      h('div', null, h('strong', { id: 'naming-title' }, 'Note names'), h('span', null, 'How notes are written in questions, lessons and the Finder')),
+      h('div', { class: 'nmopts', role: 'radiogroup', 'aria-labelledby': 'naming-title', onkeydown: (e) => {
+        const i = NAMING_OPTS.findIndex((o) => o.id === cur());
+        const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        const j = (i + d + NAMING_OPTS.length) % NAMING_OPTS.length;
+        choose(NAMING_OPTS[j].id); btns[j].focus();
+      } }, btns));
   }
   function profile() {
     const st = S.load();
@@ -1347,11 +1388,12 @@
       h('h2', { class: 'eyebrow' }, 'Settings'),
       h('section', { class: 'card settings' },
         h('div', { class: 'set' }, h('div', null, h('strong', null, 'Level'), h('span', null, 'Sets the difficulty of your Daily Set and practice')), h('div', { class: 'segctl' }, tierBtns)),
-        switchRow('Note names on keys', 'Print C D E F G A B on the keyboard when you build chords and scales', 'keyLabels'),
+        namingRow(),
+        switchRow('Note names on keys', keyLabelsText(), 'keyLabels'),
         switchRow('Guitar questions', 'Mix guitar into the Daily Set, practice and Survival', 'guitar', (v) => Q.setGuitar(v)),
         switchRow('Sound', 'Needed for the ear rounds', 'sound', (v) => { A.setEnabled(v); if (v) A.sfx('lock'); }),
         h('div', { class: 'set' }, h('div', null, h('strong', null, 'Reset progress'), h('span', null, 'Erase XP, streak, lessons and achievements on this device')),
-          h('button', { class: 'ghost danger', onclick: () => { if (window.confirm('Erase all your Tonic progress on this device? This can’t be undone.')) { S.reset(); home(); } } }, 'Reset')))), 'profile');
+          h('button', { class: 'ghost danger', onclick: () => { if (window.confirm('Erase all your Tonic progress on this device? This can’t be undone.')) { S.reset(); T.setNaming(S.load().naming); home(); } } }, 'Reset')))), 'profile');
     onKey = (e) => { if (e.key === 'Escape') home(); };
   }
 
@@ -1373,5 +1415,6 @@
     home, lessons, explorer, practice: practiceTab, profile,
   };
 
+  T.setNaming(S.load().naming);
   home();
 })();

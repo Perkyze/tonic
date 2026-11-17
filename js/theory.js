@@ -28,7 +28,75 @@
     if (a < 0) return '♭'.repeat(-a);
     return '';
   }
-  const fmt = (n) => LETTERS[n.l] + accStr(n.a);
+  // ---------- how note names are written (a display setting) ----------
+  // 'en'   — C D E F♯ B♭
+  // 'both' — the letter, then the French solfège name: C do, F♯ fa♯, B♭ si♭
+  // 'fr'   — do ré mi fa♯ si♭
+  // Only the display changes: keys, parsing and answer checking always use the English spelling.
+  const SOLFEGE = ['do', 'ré', 'mi', 'fa', 'sol', 'la', 'si'];
+  const NAMINGS = ['en', 'both', 'fr'];
+  let naming = 'en';
+  const namingListeners = [];
+  function setNaming(m) {
+    const next = NAMINGS.includes(m) ? m : 'en';
+    if (next === naming) return;
+    naming = next;
+    namingListeners.forEach((fn) => fn(naming));
+  }
+  const getNaming = () => naming;
+  const onNaming = (fn) => { namingListeners.push(fn); };
+  const fmtEn = (n) => LETTERS[n.l] + accStr(n.a);
+  const fmtFr = (n) => SOLFEGE[n.l] + accStr(n.a);
+  function fmt(n) {
+    if (naming === 'fr') return fmtFr(n);
+    if (naming === 'both') return fmtEn(n) + ' ' + fmtFr(n);
+    return fmtEn(n);
+  }
+  // Accepts a note object or an English spelling such as 'F#', 'B♭'.
+  const asNote = (x) => (typeof x === 'string' ? note(x) : x);
+  const nm = (x) => fmt(asNote(x));
+  const letterName = (l) => fmt({ l, a: 0, o: 4 });
+  // A root plus a chord symbol. French symbols keep "m" attached (lam, rém7) but put a space
+  // before words (do maj7, ré sus4) so they stay readable. 'both' shows the English symbol, then the French one.
+  function withSym(x, sym) {
+    const n = asNote(x);
+    if (!sym) return fmt(n);
+    const fr = fmtFr(n) + (/^(maj|sus|add|\()/.test(sym) ? ' ' : '') + sym;
+    if (naming === 'fr') return fr;
+    if (naming === 'both') return fmtEn(n) + sym + ' ' + fr;
+    return fmtEn(n) + sym;
+  }
+  // A list of notes (or chord symbols). In 'both' the French names follow in brackets:
+  // "C – E – G (do – mi – sol)" reads better than "C do – E mi – G sol".
+  function spell(items, sep) {
+    sep = sep === undefined ? ' – ' : sep;
+    const seps = Array.isArray(sep) ? sep : items.map(() => sep);
+    const join = (names) => names.reduce((s, x, i) => s + (i ? seps[i - 1] : '') + x, '');
+    const parts = items.map((it) => (Array.isArray(it) ? it : [it, '']));
+    const saved = naming;
+    if (saved !== 'both') return join(parts.map(([x, sym]) => withSym(x, sym)));
+    naming = 'en'; const en = join(parts.map(([x, sym]) => withSym(x, sym)));
+    naming = 'fr'; const fr = join(parts.map(([x, sym]) => withSym(x, sym)));
+    naming = saved;
+    return items.length > 1 ? en + ' (' + fr + ')' : en + ' ' + fr;
+  }
+  // Note names inside prose are written as tokens: {C}, {F#}, {Dm7}, {B°}, or a list {E G B D F} / {C – E – G}.
+  // Text outside braces is left alone, so "A sharp" or "a C" in a sentence is never mistaken for a note.
+  const TOKEN_ITEM = /^([A-G](?:#|♯|b|♭)?)(.*)$/;
+  function tx(str) {
+    if (typeof str !== 'string' || str.indexOf('{') < 0) return str;
+    return str.replace(/\{([A-G][^{}]*)\}/g, (whole, body) => {
+      const bits = body.split(/(\s*[–→,·]\s*|\s+)/);
+      const items = [], seps = [];
+      for (let i = 0; i < bits.length; i++) {
+        if (i % 2) { seps.push(bits[i]); continue; }
+        const m2 = TOKEN_ITEM.exec(bits[i]);
+        if (!m2) return whole;
+        items.push([m2[1], m2[2]]);
+      }
+      return items.length === 1 ? withSym(items[0][0], items[0][1]) : spell(items, seps);
+    });
+  }
 
   // ---------- intervals: [diatonic steps, semitones] ----------
   const IV = {
@@ -97,7 +165,7 @@
     min9:  { sym: 'm9',      name: 'minor 9th',           iv: ['P1', 'm3', 'P5', 'm7', 'M9'], formula: '1 ♭3 5 ♭7 9',  feel: 'deep and soulful' },
   };
   const chordNotes = (rootNote, q) => CHORDS[q].iv.map((iv) => up(rootNote, iv));
-  const chordSym = (rootNote, q) => fmt(rootNote) + CHORDS[q].sym;
+  const chordSym = (rootNote, q) => withSym(rootNote, CHORDS[q].sym);
   const chordLong = (rootNote, q) => fmt(rootNote) + ' ' + CHORDS[q].name;
   const chordPcs = (rootPc, q) => CHORDS[q].iv.map((iv) => mod(rootPc + IV[iv][1], 12));
 
@@ -136,8 +204,10 @@
     return n + (sig > 0 ? ' sharp' : ' flat') + (n > 1 ? 's' : '');
   }
   function sigNotes(sig) {
-    return sig >= 0 ? SHARP_ORDER.slice(0, sig).map((x) => x + '♯') : FLAT_ORDER.slice(0, -sig).map((x) => x + '♭');
+    return (sig >= 0 ? SHARP_ORDER.slice(0, sig).map((x) => x + '♯') : FLAT_ORDER.slice(0, -sig).map((x) => x + '♭')).map(nm);
   }
+  // The same notes as one readable list ("F♯ C♯ (fa♯ do♯)" in the English + French setting).
+  const sigList = (sig) => spell(sig >= 0 ? SHARP_ORDER.slice(0, sig).map((x) => x + '♯') : FLAT_ORDER.slice(0, -sig).map((x) => x + '♭'), ' ');
 
   const DIATONIC = {
     major: {
@@ -167,6 +237,15 @@
   const PC_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
   const PC_BOTH = PC_SHARP.map((s, i) => (s === PC_FLAT[i] ? s : s + ' / ' + PC_FLAT[i]));
   const IS_BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+  // Display name of a pitch class. style: 'sharp' (default), 'flat', or 'both' ("C♯ / D♭").
+  // PC_SHARP / PC_FLAT above stay English: they are parsed back into notes elsewhere.
+  function pcName(p, style) {
+    p = mod(p, 12);
+    const s = nm(PC_SHARP[p]), f = nm(PC_FLAT[p]);
+    if (style === 'flat') return f;
+    if (style === 'both') return s === f ? s : s + ' / ' + f;
+    return s;
+  }
   // The usual spelling for a chord/scale root on each pitch class.
   const ROOT_MAJORISH = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
   const ROOT_MINORISH = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
@@ -208,9 +287,10 @@
   }
 
   root.Theory = {
-    LETTERS, LETTER_PC, mod, note, midi, pc, fmt, accStr, IV, IV_NAME, SEMI_NAME, SEMI_HINT, up, down,
+    LETTERS, LETTER_PC, mod, note, midi, pc, fmt, accStr,
+    SOLFEGE, NAMINGS, setNaming, getNaming, onNaming, fmtEn, nm, letterName, withSym, spell, tx, pcName, IV, IV_NAME, SEMI_NAME, SEMI_HINT, up, down,
     CHORDS, chordNotes, chordSym, chordLong, chordPcs, SCALES, scaleNotes, scalePcs,
-    MAJOR_KEYS, majorKeyBySig, relMinor, SHARP_ORDER, FLAT_ORDER, sigText, sigNotes,
+    MAJOR_KEYS, majorKeyBySig, relMinor, SHARP_ORDER, FLAT_ORDER, sigText, sigNotes, sigList,
     DIATONIC, diatonicChord, PC_SHARP, PC_FLAT, PC_BOTH, IS_BLACK, rootFor, MINORISH, makeRng, hashStr,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

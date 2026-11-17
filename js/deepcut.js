@@ -55,7 +55,7 @@
     return rank(out);
   }
 
-  const names = (pcs, flat) => pcs.map((p) => (flat ? T.PC_FLAT : T.PC_SHARP)[p]);
+  const names = (pcs, flat) => pcs.map((p) => T.pcName(p, flat ? 'flat' : 'sharp'));
   const joinAnd = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
 
   function make(rng, tier) {
@@ -85,7 +85,7 @@
         const answers = scaleAnswers(given, chordRoot);
         if (answers.length < 6) continue;
         return { kind, title, given, givenNames: T.chordNotes(rn, q).map(fmt), types: SCALE_TYPES, answers, noun: 'scale',
-          hint: `${label} = ${T.chordNotes(rn, q).map(fmt).join(' – ')}` };
+          hint: `${label} = ${T.spell(T.chordNotes(rn, q), ' – ')}` };
       }
       if (new Set(given).size !== given.length) continue;
       const answers = chordAnswers(given);

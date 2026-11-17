@@ -12,13 +12,21 @@
   const ORD = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
   const SOLF = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'];
   const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+  // Note-name display helpers (see the naming setting in theory.js). Questions are built with
+  // whatever setting is active; answers are indexes, pitch classes and midi numbers, never names.
+  const tx = T.tx;
+  const frOnly = () => T.getNaming() === 'fr';
+  const letterWord = () => (frOnly() ? 'note name' : 'letter name');
+  const byLetter = () => (frOnly() ? 'note by note' : 'letter by letter');
+  // English mnemonics only work when the letters are on screen.
+  const mnemo = (text) => (frOnly() ? '' : ` — “${text}”`);
 
   // ---------- helpers ----------
   // Pick whichever enharmonic root gives the cleanest spelling.
   function bestRoot(pcNum, type, isScale, o) {
     const p = mod(pcNum, 12);
     const names = [...new Set([T.PC_SHARP[p], T.PC_FLAT[p]])];
-    const pref = fmt(T.rootFor(p, type));
+    const pref = T.fmtEn(T.rootFor(p, type));
     let best = null, bestCost = 1e9;
     for (const nm of names) {
       const r = note(nm, o === undefined ? 4 : o);
@@ -31,10 +39,10 @@
     return best;
   }
   const TRIAD_WORD = { maj: 1, min: 1, dim: 1, aug: 1 };
-  const chordLabel = (r, q) => (TRIAD_WORD[q] ? fmt(r) + ' ' + CHORDS[q].name : fmt(r) + CHORDS[q].sym);
+  const chordLabel = (r, q) => (TRIAD_WORD[q] ? fmt(r) + ' ' + CHORDS[q].name : T.chordSym(r, q));
   const qualityLabel = (q) => cap(CHORDS[q].name);
   const scaleLabel = (s) => cap(SCALES[s].name);
-  const spell = (notes) => notes.map(fmt).join(' – ');
+  const spell = (notes) => T.spell(notes, ' – ');
   const keyName = (tonic, mode) => fmt(tonic) + ' ' + mode;
 
   function choice(rng, correct, distractors, n) {
@@ -186,7 +194,12 @@
     const MAJ = [0, 2, 4, 5, 7, 9, 11];
     const cadence = [[0, 4, 7], [0, 5, 9], [-1, 2, 7], [0, 4, 7]].map((c, i) => ({ at: i * 0.55, midis: c.map((x) => t + x), dur: 0.52 }));
     const mk = (dg) => cadence.concat([{ at: 2.7, midis: [t + MAJ[dg]], dur: 1.3 }]);
-    const opt = (dg) => ({ label: `${dg + 1} · ${SOLF[dg]}`, audio: [{ at: 0, midis: [t], dur: 0.5 }, { at: 0.55, midis: [t + MAJ[dg]], dur: 1.1 }] });
+    // Movable-do syllables (do = the key's home note) would clash with French fixed-do note names,
+    // so outside English mode the degrees are just numbered.
+    const movable = T.getNaming() === 'en';
+    const degName = (dg) => (movable ? `${dg + 1} · ${SOLF[dg]}` : `Degree ${dg + 1}`);
+    const degText = (dg) => (movable ? `${dg + 1} (${SOLF[dg]})` : String(dg + 1));
+    const opt = (dg) => ({ label: degName(dg), audio: [{ at: 0, midis: [t], dur: 0.5 }, { at: 0.55, midis: [t + MAJ[dg]], dur: 1.1 }] });
     const r = bestRoot(t, 'major', true, Math.floor(t / 12) - 1);
     const sc = T.scaleNotes(r, 'major');
     return {
@@ -195,8 +208,8 @@
       sub: 'First you’ll hear the key (four chords), then one single note.',
       audio: mk(deg),
       input: choice(rng, opt(deg), rng.shuffle(pool.filter((x) => x !== deg)).map(opt)),
-      answerText: `${deg + 1} (${SOLF[deg]})`,
-      explain: `Degree <b>${deg + 1} (${SOLF[deg]})</b> — ${DEGREE_FEEL[deg]}. The key was ${fmt(r)} major and the note was ${fmt(sc[deg])}. Each degree has its own “pull” toward home; learning that feeling is how you play by ear.`,
+      answerText: degText(deg),
+      explain: `Degree <b>${degText(deg)}</b> — ${DEGREE_FEEL[deg]}. The key was ${fmt(r)} major and the note was ${fmt(sc[deg])}. Each degree has its own “pull” toward home; learning that feeling is how you play by ear.`,
       reveal: Object.assign(pianoOf([sc[deg]]), { marks: [midi(sc[deg])] }),
     };
   });
@@ -221,7 +234,7 @@
     const lab = (degs) => degs.map((dg) => D.numerals[dg]).join(' – ');
     const opt = (degs) => ({ label: lab(degs), audio: mk(degs) });
     const r = bestRoot(t, D.scale, true);
-    const chords = prog.map((dg) => { const c = T.diatonicChord(r, mode, dg, false); return T.chordSym(c.root, c.q); }).join(' – ');
+    const chords = T.spell(prog.map((dg) => { const c = T.diatonicChord(r, mode, dg, false); return [c.root, CHORDS[c.q].sym]; }), ' – ');
     return {
       key: 'ear-prog:' + mode + ':' + prog.join(''),
       prompt: 'Which chord progression is this?',
@@ -246,21 +259,21 @@
       key: 'piano-note:' + p,
       prompt: 'Which note is the highlighted key?',
       visual: { kind: 'piano', lo: 48, hi: 71, marks: [m] },
-      input: choice(rng, T.PC_BOTH[p], rng.shuffle(same).map((x) => T.PC_BOTH[x])),
-      answerText: T.PC_BOTH[p],
+      input: choice(rng, T.pcName(p, 'both'), rng.shuffle(same).map((x) => T.pcName(x, 'both'))),
+      answerText: T.pcName(p, 'both'),
       explain: black
-        ? `<b>${T.PC_BOTH[p]}</b>. Black keys borrow their name from a neighbour: one semitone above ${T.PC_SHARP[p][0]} is ${T.PC_SHARP[p]}, one below ${T.PC_FLAT[p][0]} is ${T.PC_FLAT[p]} — same key, two names.`
-        : `<b>${T.PC_SHARP[p]}</b>. Use the black keys as landmarks: C sits just left of every group of two black keys, F just left of every group of three.`,
-      reveal: { kind: 'piano', lo: 48, hi: 71, marks: [m], labels: { [m]: black ? T.PC_SHARP[p] : T.PC_SHARP[p] } },
+        ? `<b>${T.pcName(p, 'both')}</b>. Black keys borrow their name from a neighbour: one semitone above ${T.nm(T.PC_SHARP[p][0])} is ${T.pcName(p)}, one below ${T.nm(T.PC_FLAT[p][0])} is ${T.pcName(p, 'flat')} — same key, two names.`
+        : `<b>${T.pcName(p)}</b>. ` + tx('Use the black keys as landmarks: {C} sits just left of every group of two black keys, {F} just left of every group of three.'),
+      reveal: { kind: 'piano', lo: 48, hi: 71, marks: [m], labels: { [m]: T.pcName(p) } },
     };
   });
 
   function staffPosText(clef, n) {
     const p = n.o * 7 + n.l - (clef === 'treble' ? 30 : 18);
-    if (p === -2 && clef === 'treble') return 'on the first ledger line below the staff — that’s middle C';
-    if (p === 10 && clef === 'bass') return 'on the first ledger line above the staff — that’s middle C';
-    if (p < 0) return 'below the staff — count down letter by letter from the bottom line';
-    if (p > 8) return 'above the staff — count up letter by letter from the top line';
+    if (p === -2 && clef === 'treble') return tx('on the first ledger line below the staff — that’s middle {C}');
+    if (p === 10 && clef === 'bass') return tx('on the first ledger line above the staff — that’s middle {C}');
+    if (p < 0) return `below the staff — count down ${byLetter()} from the bottom line`;
+    if (p > 8) return `above the staff — count up ${byLetter()} from the top line`;
     return p % 2 === 0 ? `on line ${p / 2 + 1}, counting from the bottom` : `in space ${(p + 1) / 2}, counting from the bottom`;
   }
   def('read-note', 'reading', 'eye', 1, 3, (rng, d, o) => {
@@ -269,15 +282,15 @@
     const dd = rng.int(range[0], range[1]);
     const n = { l: mod(dd, 7), a: 0, o: Math.floor(dd / 7) };
     const mn = clef === 'treble'
-      ? 'Treble lines, bottom to top: <b>E G B D F</b> (Every Good Boy Does Fine). Spaces spell <b>F A C E</b>.'
-      : 'Bass lines, bottom to top: <b>G B D F A</b> (Good Boys Do Fine Always). Spaces: <b>A C E G</b> (All Cows Eat Grass).';
+      ? tx(`Treble lines, bottom to top: <b>{E G B D F}</b>${mnemo('Every Good Boy Does Fine')}. Spaces${frOnly() ? ':' : ' spell'} <b>{F A C E}</b>.`)
+      : tx(`Bass lines, bottom to top: <b>{G B D F A}</b>${mnemo('Good Boys Do Fine Always')}. Spaces: <b>{A C E G}</b>${mnemo('All Cows Eat Grass')}.`);
     return {
       key: 'read-note:' + clef + ':' + T.LETTERS[n.l],
       prompt: 'Name this note.',
       visual: { kind: 'staff', clef, sig: 0, notes: [n], layout: 'chord' },
-      input: { kind: 'choice', layout: 'letters', options: T.LETTERS.map((x) => ({ label: x })), answer: n.l },
-      answerText: T.LETTERS[n.l],
-      explain: `That’s <b>${T.LETTERS[n.l]}</b>, sitting ${staffPosText(clef, n)}. ${mn}`,
+      input: { kind: 'choice', layout: 'letters', options: T.LETTERS.map((x, i) => ({ label: T.letterName(i) })), answer: n.l },
+      answerText: T.letterName(n.l),
+      explain: `That’s <b>${T.letterName(n.l)}</b>, sitting ${staffPosText(clef, n)}. ${mn}`,
     };
   });
 
@@ -291,12 +304,12 @@
     if (minor) ds.splice(1, 0, keyName(T.majorKeyBySig(sig).tonic, 'minor'));
     const majName = keyName(T.majorKeyBySig(sig).tonic, 'major');
     let why;
-    if (sig === 0) why = 'No sharps or flats means <b>C major</b>.';
+    if (sig === 0) why = tx('No sharps or flats means <b>{C} major</b>.');
     else if (sig > 0) {
       const last = T.sigNotes(sig)[sig - 1];
-      why = `${cap(T.sigText(sig))} (${T.sigNotes(sig).join(' ')}). Trick for sharps: go one semitone <i>up</i> from the last sharp (${last}) and you land on <b>${majName}</b>.`;
-    } else if (sig === -1) why = 'One flat (B♭) is <b>F major</b> — that one you simply memorise.';
-    else why = `${cap(T.sigText(sig))} (${T.sigNotes(sig).join(' ')}). Trick for flats: the <i>second-to-last</i> flat names the key — <b>${majName}</b>.`;
+      why = `${cap(T.sigText(sig))}: ${T.sigList(sig)}. Trick for sharps: go one semitone <i>up</i> from the last sharp (${last}) and you land on <b>${majName}</b>.`;
+    } else if (sig === -1) why = tx('One flat ({Bb}) is <b>{F} major</b> — that one you simply memorise.');
+    else why = `${cap(T.sigText(sig))}: ${T.sigList(sig)}. Trick for flats: the <i>second-to-last</i> flat names the key — <b>${majName}</b>.`;
     if (minor) why += ` The relative minor lives 3 semitones below the major tonic: <b>${name(sig)}</b>.`;
     return {
       key: 'key-sig:' + sig + (minor ? 'm' : ''),
@@ -391,7 +404,7 @@
       audioAfter: mel([midi(low), midi(hi)], 0.6, 0.9),
       input: choice(rng, IV_NAME[iv], ds),
       answerText: IV_NAME[iv],
-      explain: `${fmt(low)} up to ${fmt(hi)}. Step 1 — count the letter names, including both ends: ${steps + 1}, so it’s ${size}. Step 2 — count semitones: ${IV[iv][1]}, which makes it a <b>${IV_NAME[iv].toLowerCase()}</b>.`,
+      explain: `${fmt(low)} up to ${fmt(hi)}. Step 1 — count the ${letterWord()}s, including both ends: ${steps + 1}, so it’s ${size}. Step 2 — count semitones: ${IV[iv][1]}, which makes it a <b>${IV_NAME[iv].toLowerCase()}</b>.`,
     };
   });
 
@@ -410,7 +423,7 @@
       input: reverse ? choice(rng, SEMI_NAME[s], nb.map((x) => SEMI_NAME[x])) : choice(rng, String(s), nb.map(String)),
       answerText: reverse ? SEMI_NAME[s] : String(s),
       explain: `<b>${SEMI_NAME[s]}</b> = ${SEMI_HINT[s]}`,
-      reveal: { kind: 'piano', lo: 60, hi: 83, marks: [60, 60 + s], labels: { 60: 'C', [60 + s]: T.PC_SHARP[s % 12] } },
+      reveal: { kind: 'piano', lo: 60, hi: 83, marks: [60, 60 + s], labels: { 60: T.nm("C"), [60 + s]: T.pcName(s) } },
     };
   });
 
@@ -434,8 +447,8 @@
       input: choice(rng, fmt(res), noteDistractors(rng, res, extra)),
       answerText: fmt(res),
       explain: d <= 1
-        ? `<b>${fmt(res)}</b>. ${iv === 'm2' ? 'A half step is the very next key.' : 'A whole step skips exactly one key.'} Watch out for E–F and B–C: those white keys have no black key between them, so they’re only a half step apart.`
-        : `<b>${fmt(res)}</b>. Count ${steps + 1} letter names ${dir > 0 ? 'up' : 'down'} from ${T.LETTERS[start.l]} to land on ${T.LETTERS[res.l]}, then adjust until the distance is ${IV[iv][1]} semitones.`,
+        ? `<b>${fmt(res)}</b>. ${iv === 'm2' ? 'A half step is the very next key.' : 'A whole step skips exactly one key.'} ${tx('Watch out for {E}–{F} and {B}–{C}:')} those white keys have no black key between them, so they’re only a half step apart.`
+        : `<b>${fmt(res)}</b>. Count ${steps + 1} ${letterWord()}s ${dir > 0 ? "up" : "down"} from ${T.letterName(start.l)} to land on ${T.letterName(res.l)}, then adjust until the distance is ${IV[iv][1]} semitones.`,
     };
   });
 
@@ -547,9 +560,9 @@
       prompt: `How many sharps or flats does <b>${keyName(tonic, mode)}</b> have?`,
       input: choice(rng, lab(sig), ds),
       answerText: lab(sig),
-      explain: `<b>${cap(keyName(tonic, mode))}</b> has ${T.sigText(sig)}${sig ? ': ' + T.sigNotes(sig).join(' ') : ''}.` +
+      explain: `<b>${cap(keyName(tonic, mode))}</b> has ${T.sigText(sig)}${sig ? ': ' + T.sigList(sig) : ''}.` +
         (mode === 'minor' ? ` It shares that signature with its relative major, ${keyName(keyFromSig(sig, 'major'), 'major')}.` : '') +
-        ' Sharps always arrive in the order F C G D A E B; flats arrive in the reverse order, B E A D G C F.',
+        tx(' Sharps always arrive in the order {F C G D A E B}; flats arrive in the reverse order, {B E A D G C F}.'),
       reveal: { kind: 'staff', clef: 'treble', sig, notes: [] },
     };
   });
@@ -567,7 +580,7 @@
       sub: 'Numbers are steps of the major scale starting on the chord’s root.',
       input: reverse ? choice(rng, qualityLabel(q), others.map(qualityLabel)) : choice(rng, CHORDS[q].formula, others.map((x) => CHORDS[x].formula)),
       answerText: reverse ? qualityLabel(q) : CHORDS[q].formula,
-      explain: `<b>${qualityLabel(q)}</b> = <b>${CHORDS[q].formula}</b> — ${CHORDS[q].feel}. On C that gives ${spell(T.chordNotes(r, q))}.`,
+      explain: `<b>${qualityLabel(q)}</b> = <b>${CHORDS[q].formula}</b> — ${CHORDS[q].feel}. On ${T.nm("C")} that gives ${spell(T.chordNotes(r, q))}.`,
       reveal: pianoOf(T.chordNotes(r, q)),
       audioAfter: blk(T.chordNotes(r, q).map(midi), 0, 1.6),
     };
@@ -588,14 +601,14 @@
     const form = d >= 5 ? rng.pick(['notes', 'notes', 'desc']) : rng.pick(['desc', 'white']);
     let prompt, visual = null, r = note(m.white), tail = '';
     if (form === 'desc') prompt = `Which mode is <b>${m.desc}</b>?`;
-    else if (form === 'white') prompt = `Play only white keys from <b>${m.white} up to ${m.white}</b>. Which mode is that?`;
+    else if (form === 'white') prompt = `Play only white keys from <b>${T.nm(m.white)} up to ${T.nm(m.white)}</b>. Which mode is that?`;
     else {
       for (let tries = 0; tries < 40; tries++) {
         r = bestRoot(rng.int(0, 11), m.id, true);
         if (T.scaleNotes(r, m.id).every((n) => Math.abs(n.a) <= 1)) break;
       }
       prompt = 'These notes, starting from the first one — which mode?';
-      visual = { kind: 'text', big: T.scaleNotes(r, m.id).map(fmt).join('  ') };
+      visual = { kind: 'text', big: T.spell(T.scaleNotes(r, m.id), '  ') };
       tail = ` Compare with ${fmt(r)} ${T.MINORISH[m.id] ? 'natural minor' : 'major'} and spot the altered note.`;
     }
     const sc = T.scaleNotes(r, m.id);
@@ -620,10 +633,10 @@
     return {
       key: 'build-interval:' + s,
       prompt: `Tap the note a <b>${SEMI_NAME[s].toLowerCase()}</b> above the marked key.`,
-      sub: `The marked key is ${T.PC_BOTH[given % 12]}.`,
+      sub: `The marked key is ${T.pcName(given, 'both')}.`,
       input: { kind: 'piano', lo: 60, hi: 83, given: [given], targetMidis: [given + s], exact: true, max: 1 },
-      answerText: T.PC_BOTH[(given + s) % 12],
-      explain: `<b>${SEMI_NAME[s]}</b> = ${s} semitone${s > 1 ? 's' : ''}. From ${T.PC_BOTH[given % 12]}, count up ${s} key${s > 1 ? 's' : ''} (black and white both count) and you land on <b>${T.PC_BOTH[(given + s) % 12]}</b>.`,
+      answerText: T.pcName(given + s, 'both'),
+      explain: `<b>${SEMI_NAME[s]}</b> = ${s} semitone${s > 1 ? 's' : ''}. From ${T.pcName(given, 'both')}, count up ${s} key${s > 1 ? 's' : ''} (black and white both count) and you land on <b>${T.pcName(given + s, 'both')}</b>.`,
       audioAfter: mel([given, given + s], 0.6, 0.9),
     };
   });
@@ -738,10 +751,10 @@
       prompt: `Which note is the open <b>${GT.ORD[s]} string</b>${extra} of a guitar?`,
       sub: 'Open means played without pressing any fret.',
       visual: { kind: 'fretboard', from: 1, to: 3, string: s, dots: [{ s, f: 0 }] },
-      input: choice(rng, GT.OPEN[s], rng.shuffle(['E', 'A', 'D', 'G', 'B'].filter((x) => x !== GT.OPEN[s]))),
-      answerText: GT.OPEN[s],
-      explain: `The ${GT.ORD[s]} string is <b>${GT.OPEN[s]}</b>. From thickest to thinnest the open strings are <b>E A D G B E</b> — “Eddie Ate Dynamite, Good Bye Eddie”.`,
-      reveal: { kind: 'fretboard', from: 1, to: 3, string: s, dots: GT.OPEN.map((nm, i) => ({ s: i, f: 0, label: nm, cls: i === s ? 'good' : null })) },
+      input: choice(rng, GT.openName(s), rng.shuffle(['E', 'A', 'D', 'G', 'B'].filter((x) => x !== GT.OPEN[s])).map(T.nm)),
+      answerText: GT.openName(s),
+      explain: `The ${GT.ORD[s]} string is <b>${GT.openName(s)}</b>. ` + tx(`From thickest to thinnest the open strings are <b>{E A D G B E}</b>${mnemo('Eddie Ate Dynamite, Good Bye Eddie')}.`),
+      reveal: { kind: 'fretboard', from: 1, to: 3, string: s, dots: GT.OPEN.map((_, i) => ({ s: i, f: 0, label: GT.openName(i), cls: i === s ? 'good' : null })) },
       audioAfter: GT.pluck([[s, 0]]),
     };
   });
@@ -754,18 +767,18 @@
     const p = GT.pcAt(s, f);
     const cands = [p + 1, p - 1, p + 2, p - 2, GT.pcAt(s, 0), GT.pcAt(s === 5 ? 4 : s + 1, f), p + 5].map((x) => mod(x, 12)).filter((x) => x !== p && (d > 1 || !T.IS_BLACK[x]));
     const walk = [];
-    for (let k = 0; k <= f; k++) walk.push(T.PC_SHARP[GT.pcAt(s, k)]);
+    for (let k = 0; k <= f; k++) walk.push(T.pcName(GT.pcAt(s, k)));
     const to = d <= 1 ? 4 : d === 2 ? 5 : 12;
     return {
       key: 'guitar-note:' + s + ':' + f,
       prompt: 'Which note is this on the guitar?',
       sub: `${GT.ORD[s]} string${f === 0 ? ', played open' : ', fret ' + f}. The thickest string is at the bottom.`,
       visual: { kind: 'fretboard', from: 1, to, string: s, dots: [{ s, f }] },
-      input: choice(rng, T.PC_BOTH[p], rng.shuffle(cands).map((x) => T.PC_BOTH[x])),
-      answerText: T.PC_BOTH[p],
-      explain: `The open ${GT.ORD[s]} string is ${GT.OPEN[s]}, and every fret raises the note one semitone` +
-        (f === 0 ? ` — played open, it is simply <b>${GT.OPEN[s]}</b>.` : f <= 6 ? `: ${walk.join(' → ')}. Fret ${f} is <b>${T.PC_BOTH[p]}</b>.` : `. Shortcut: fret 12 is the open note again, one octave up — count from there. Fret ${f} is <b>${T.PC_BOTH[p]}</b>.`),
-      reveal: { kind: 'fretboard', from: 1, to, string: s, dots: [{ s, f, label: T.PC_SHARP[p], cls: 'good' }] },
+      input: choice(rng, T.pcName(p, 'both'), rng.shuffle(cands).map((x) => T.pcName(x, 'both'))),
+      answerText: T.pcName(p, 'both'),
+      explain: `The open ${GT.ORD[s]} string is ${GT.openName(s)}, and every fret raises the note one semitone` +
+        (f === 0 ? ` — played open, it is simply <b>${GT.openName(s)}</b>.` : f <= 6 ? `: ${walk.join(' → ')}. Fret ${f} is <b>${T.pcName(p, 'both')}</b>.` : `. Shortcut: fret 12 is the open note again, one octave up — count from there. Fret ${f} is <b>${T.pcName(p, 'both')}</b>.`),
+      reveal: { kind: 'fretboard', from: 1, to, string: s, dots: [{ s, f, label: T.pcName(p), cls: 'good' }] },
       audioAfter: GT.pluck([[s, f]]),
     };
   });
@@ -800,11 +813,11 @@
     const spots = GT.positions(p, 0, to);
     return {
       key: 'guitar-find:' + p,
-      prompt: `Tap any spot on the fretboard that plays <b>${T.PC_BOTH[p]}</b>.`,
+      prompt: `Tap any spot on the fretboard that plays <b>${T.pcName(p, 'both')}</b>.`,
       sub: 'Open strings count too — tap to the left of the nut. Thickest string is at the bottom.',
       input: { kind: 'fret', from: 1, to, targetPc: p },
       answerText: spots.map(GT.where).join(', '),
-      explain: `<b>${T.PC_BOTH[p]}</b> lives at: ${spots.map(GT.where).join(' · ')}. Start from an open string (E A D G B E) and count up one semitone per fret.`,
+      explain: `<b>${T.pcName(p, 'both')}</b> lives at: ${spots.map(GT.where).join(' · ')}. ` + tx('Start from an open string ({E A D G B E}) and count up one semitone per fret.'),
       audioAfter: GT.pluck([[spots[0].s, spots[0].f]]),
     };
   });
@@ -823,36 +836,36 @@
     'ear-scale': () => 'Listen to the third note. Bright means a major-type scale, dark means a minor-type scale. Then listen for anything unusual near the top.',
     'ear-degree': () => 'Hum the last note, then walk down step by step until you feel “home”. Count the steps you took.',
     'ear-progression': () => 'Follow the lowest note of each chord. Does it step up a little, or leap?',
-    'piano-note': () => 'C sits just left of every group of two black keys; F sits just left of every group of three. Count letters from there.',
+    'piano-note': () => `{C} sits just left of every group of two black keys; {F} sits just left of every group of three. Count ${frOnly() ? 'up the note names' : 'letters'} from there.`,
     'read-note': (q) => (q.visual.clef === 'treble'
-      ? 'Treble clef lines, bottom to top: E G B D F. Spaces: F A C E. Count up or down from the nearest one you know.'
-      : 'Bass clef lines, bottom to top: G B D F A. Spaces: A C E G. Count up or down from the nearest one you know.'),
+      ? 'Treble clef lines, bottom to top: {E G B D F}. Spaces: {F A C E}. Count up or down from the nearest one you know.'
+      : 'Bass clef lines, bottom to top: {G B D F A}. Spaces: {A C E G}. Count up or down from the nearest one you know.'),
     'key-sig': (q) => (q.visual.sig > 0 ? 'For sharps: find the last sharp (the one furthest right) and go up one semitone.'
       : q.visual.sig < -1 ? 'For flats: the second-to-last flat is the name of the key.'
-        : q.visual.sig === -1 ? 'One flat is a key you simply memorise — it starts with F.'
+        : q.visual.sig === -1 ? 'One flat is a key you simply memorise — it starts on {F}.'
           : 'No sharps and no flats: the all-white-keys key.') + (/minor/.test(q.prompt) ? ' Then go down 3 semitones for the relative minor.' : ''),
     'piano-chord': () => 'Start from the lowest note and count semitones up to the next note: 4 means major, 3 means minor.',
     'piano-interval': () => 'Count every key from one to the other — black and white — not including the first.',
     'staff-interval': () => 'Count the lines and spaces from the lower note to the upper note, including both. That gives the number (3rd, 5th…).',
-    semitones: () => 'Picture a keyboard starting on C and count keys: C→D is 2, C→E is 4, C→G is 7, C→C is 12.',
+    semitones: () => 'Picture a keyboard starting on {C} and count keys: {C}→{D} is 2, {C}→{E} is 4, {C}→{G} is 7, {C}→{C} is 12.',
     'interval-math': (q) => (q.diff <= 1
-      ? 'A half step is the very next key. A whole step skips one. Careful: E–F and B–C have no black key between them.'
-      : 'First count letter names to find the letter, then check the semitones to decide sharp, flat or natural.'),
+      ? 'A half step is the very next key. A whole step skips one. Careful: {E}–{F} and {B}–{C} have no black key between them.'
+      : (frOnly() ? 'First count note names to find the note' : 'First count letter names to find the letter') + ', then check the semitones to decide sharp, flat or natural.'),
     'scale-degree': () => 'Walk up the scale using the pattern whole, whole, half, whole, whole, whole, half (for major).',
     'chord-in-key': () => 'Write out the scale, then stack every other note. In a major key I, IV and V are major; ii, iii and vi are minor.',
     'relative-key': () => 'The relative minor starts 3 semitones below the major’s home note (or on the major scale’s 6th note).',
     'chord-tone': () => 'A major 3rd is 4 semitones above the root, a minor 3rd is 3. The 5th is 7 semitones up.',
-    'chord-notes': () => 'Triads skip letters: root, skip one, next, skip one, next. Then check the middle note: 4 semitones up for major, 3 for minor.',
-    'sig-count': () => 'Sharp keys go C (0), G (1), D (2), A (3), E (4), B (5). Flat keys go F (1), B♭ (2), E♭ (3), A♭ (4), D♭ (5).',
+    'chord-notes': () => (frOnly() ? 'Triads skip note names' : 'Triads skip letters') + ': root, skip one, next, skip one, next. Then check the middle note: 4 semitones up for major, 3 for minor.',
+    'sig-count': () => 'Sharp keys go {C} (0), {G} (1), {D} (2), {A} (3), {E} (4), {B} (5). Flat keys go {F} (1), {B♭} (2), {E♭} (3), {A♭} (4), {D♭} (5).',
     'chord-formula': () => 'Major is 1 3 5. Flatten the 3 for minor. Flatten the 5 as well for diminished. Raise the 5 for augmented.',
-    'mode-char': () => 'White keys only: C Ionian, D Dorian, E Phrygian, F Lydian, G Mixolydian, A Aeolian, B Locrian.',
+    'mode-char': () => 'White keys only: {C} Ionian, {D} Dorian, {E} Phrygian, {F} Lydian, {G} Mixolydian, {A} Aeolian, {B} Locrian.',
     'build-interval': () => 'Count up one key at a time from the marked key — black keys count too.',
     'build-chord': (q) => (q.input.targetPcs.length <= 3
       ? 'Start on the root. Major: up 4 semitones, then 3 more. Minor: up 3, then 4.'
       : 'Build the triad first, then add the top note: a major 7th is 1 semitone below the octave, a ♭7 is 2 below.'),
     'build-scale': () => 'From the root, a major scale goes whole, whole, half, whole, whole, whole, half. Natural minor: whole, half, whole, whole, half, whole, whole.',
-    'guitar-string': () => 'Thickest to thinnest: Eddie Ate Dynamite, Good Bye Eddie.',
-    'guitar-note': () => 'Name the open string first (E A D G B E from the bottom), then count one semitone per fret.',
+    'guitar-string': () => (frOnly() ? 'Thickest to thinnest: {E A D G B E}.' : 'Thickest to thinnest: Eddie Ate Dynamite, Good Bye Eddie.'),
+    'guitar-note': () => 'Name the open string first ({E A D G B E} from the bottom), then count one semitone per fret.',
     'guitar-chord-id': () => 'Work out the note on each played string, then see which three or four different notes you end up with.',
     'guitar-find': () => 'Pick a string, say its open note, and count up the musical alphabet one fret at a time.',
   };
@@ -867,7 +880,7 @@
     const dd = clamp(d, gen.min, gen.max);
     const q = gen.make(rng, dd, o || {});
     q.gen = gen.id; q.skill = gen.skill; q.sense = gen.sense; q.diff = dd;
-    if (!q.hint && HINTS[gen.id]) q.hint = HINTS[gen.id](q);
+    if (!q.hint && HINTS[gen.id]) q.hint = cap(tx(HINTS[gen.id](q))); // cap: a hint may open with "do …"
     return q;
   }
 
