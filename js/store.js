@@ -190,9 +190,9 @@
     save();
     return true;
   }
-  // ---------- islands on the Learn map ----------
-  // An island opens when the one before it is complete. Your level gives a head start,
-  // and an island stays open once it has been opened (or once you have progress on it or past it).
+  // ---------- chapters on the Learn trail (stored as "islands" for older saves) ----------
+  // A chapter opens when the one before it is complete. Your level gives a head start,
+  // and a chapter stays open once it has been opened (or once you have progress on it or past it).
   const HEAD_START = { beginner: 1, intermediate: 4, advanced: 8 };
   function islands() {
     const st = load();
@@ -209,7 +209,7 @@
       o.open = !!st.islands[i] || i < (HEAD_START[st.tier] || 1) || i <= furthest || (i > 0 && out[i - 1].complete);
       if (o.open && !st.islands[i]) { st.islands[i] = today(); changed = true; }
     });
-    // islands opened since the map was last seen get their fog-lifting moment
+    // chapters opened since the trail was last seen get a short "now open" moment
     if (!st.islandsSeen) { st.islandsSeen = {}; out.forEach((o, i) => { if (o.open) st.islandsSeen[i] = 1; }); changed = true; }
     out.forEach((o, i) => { o.fresh = o.open && !st.islandsSeen[i]; });
     if (changed) save();

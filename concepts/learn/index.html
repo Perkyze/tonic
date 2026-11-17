@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { overflow-x: hidden; background: radial-gradient(900px 500px at 85% -10%, rgba(155, 123, 255, .22), transparent 60%), var(--bg); min-height: 100vh; }
+  header { max-width: 1280px; margin: 0 auto; padding: 32px 16px 8px; }
+  header h1 { font-size: 34px; }
+  header p { color: var(--mute); margin-top: 6px; max-width: 70ch; }
+  .grid { max-width: 1280px; margin: 0 auto; padding: 16px 16px 48px; display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 28px; justify-items: center; }
+  figure { margin: 0; width: 100%; max-width: 390px; }
+  .phone { width: 100%; aspect-ratio: 390 / 844; border-radius: 44px; padding: 10px; background: #0a0818; box-shadow: 0 0 0 2px #3d3670, 0 30px 60px rgba(0, 0, 0, .5); }
+  .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 34px; background: #000; display: block; }
+  figcaption { padding: 18px 4px 0; }
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 99px; font: 800 11px var(--body); letter-spacing: .1em; text-transform: uppercase; background: var(--card-2); color: var(--yellow); }
+  figcaption h2 { font-size: 22px; margin: 8px 0 6px; }
+  figcaption p { color: var(--mute); font-size: 15px; }
+  figcaption ul { margin: 10px 0 0; padding-left: 18px; color: var(--ink); font-size: 14px; }
+  figcaption li { margin: 3px 0; }
+  figcaption a { display: inline-block; margin-top: 12px; color: var(--sky); font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Learn page — four directions</h1>
+  <p>Same data in all three: 8 chapters × 3 lessons, stars, a trophy per chapter. Mock progress: chapters 1–2 done, lesson 8 is next. Every phone scrolls and every stop can be tapped.</p>
+</header>
+<main class="grid">
+  <figure>
+    <div class="phone"><iframe src="d-mix.html" title="Trail stones concept"></iframe></div>
+    <figcaption>
+      <span class="tag">D · A + B mix</span>
+      <h2>Trail stones</h2>
+      <p>The simple stepping-stone UX on top of the trail's landscapes: chunky coins on a winding path, one START bubble, and a card that drops down under the coin you tap.</p>
+      <ul><li>Same 8 landscapes and weather as the trail, with less scenery so the coins stand out</li><li>A banner at the top takes each landscape's colour and shows the chapter's progress</li><li>No label pills: tap a coin to see its title</li></ul>
+      <a href="d-mix.html" target="_blank">Open full screen →</a>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="phone"><iframe src="a-stones.html" title="Stepping stones concept"></iframe></div>
+    <figcaption>
+      <span class="tag">A · Duolingo-style</span>
+      <h2>Stepping stones</h2>
+      <p>A single winding column of chunky 3D lesson coins with a sticky chapter banner. Each chapter has its own colour, background tint and mascot pose.</p>
+      <ul><li>Bobbing START bubble and ring on the next lesson</li><li>Tap a coin for the popover card</li><li>Jump-back button when the next lesson scrolls off screen</li></ul>
+      <a href="a-stones.html" target="_blank">Open full screen →</a>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="phone"><iframe src="b-trail.html" title="The trail concept"></iframe></div>
+    <figcaption>
+      <span class="tag">B · Roadmap, like Ahead</span>
+      <h2>The trail</h2>
+      <p>A vertical illustrated journey with numbered stops and label pills. Each chapter is its own landscape, and clouds blend one into the next.</p>
+      <ul><li>Meadow → pine lake → autumn woods → savanna → sunset coast → rainy moor → snowy peaks → aurora</li><li>Weather per chapter: butterflies, fog, falling leaves, heat haze, sea glints, rain + lightning, snow, shooting stars</li><li>Gift box turns into a trophy when a chapter is finished</li></ul>
+      <a href="b-trail.html" target="_blank">Open full screen →</a>
+    </figcaption>
+  </figure>
+  <figure>
+    <div class="phone"><iframe src="c-tour.html" title="World tour concept"></iframe></div>
+    <figcaption>
+      <span class="tag">C · Roadmap, side-scrolling</span>
+      <h2>World tour</h2>
+      <p>The band's tour van drives a road you swipe sideways. Chapters are legs of the tour, lessons are roadside signs and each trophy is a concert venue. The time of day goes from dawn to midnight as you go.</p>
+      <ul><li>Hometown → sunflower fields → lighthouse coast → desert → mountain pass → rainy city → bayou → neon city</li><li>Parallax layers, a moving sun and moon, windmills, lighthouse beam, rain, snow, fireflies, fireworks</li><li>Leg chips and a lesson card under the scene</li></ul>
+      <a href="c-tour.html" target="_blank">Open full screen →</a>
+    </figcaption>
+  </figure>
+</main>
+</body>
+</html>

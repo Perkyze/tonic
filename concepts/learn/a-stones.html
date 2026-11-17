@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Learn — Stepping stones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { background: var(--bg); transition: background-color .5s; }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 0 16px 130px; }
+
+  /* top chips */
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 14px 0 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 99px; font: 800 15px var(--display); }
+  .chip.fire { color: var(--orange); }
+  .chip.star { color: var(--yellow); }
+  .chip.cup { color: #ffe08a; }
+  .chip .stars i { width: 18px; height: 18px; }
+
+  /* sticky chapter banner */
+  .banner { position: sticky; top: 8px; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 18px; border-radius: 18px;
+    background: var(--c); box-shadow: 0 5px 0 var(--cd); color: #fff; transition: background .35s, box-shadow .35s; }
+  .banner .t { flex: 1; min-width: 0; }
+  .banner .k { font: 800 12px var(--body); letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+  .banner h1 { font-size: 21px; margin-top: 3px; text-shadow: 0 1px 0 rgba(0, 0, 0, .12); }
+  .banner .guide { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 14px; border: 2px solid rgba(255, 255, 255, .35); font: 800 13px var(--body); letter-spacing: .04em; text-transform: uppercase; }
+  .banner .guide span { font-size: 18px; }
+
+  /* chapter sections */
+  .unit { position: relative; padding: 34px 0 10px; }
+  .divider { display: flex; align-items: center; gap: 14px; margin: 18px 0 30px; color: var(--mute); font: 700 15px var(--body); }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 2px; background: var(--line); border-radius: 2px; }
+  .unit.locked .divider { opacity: .6; }
+  .path { position: relative; display: flex; flex-direction: column; align-items: center; gap: 36px; }
+
+  /* lesson nodes — chunky 3D coins */
+  .node { position: relative; width: 74px; height: 70px; transform: translateX(var(--x)); }
+  .coin { position: relative; width: 74px; height: 66px; border-radius: 50%; background: var(--c); box-shadow: 0 8px 0 var(--cd); display: grid; place-items: center; font-size: 30px;
+    transition: transform .08s, box-shadow .08s; }
+  .coin::after { content: ''; position: absolute; left: 14px; top: 8px; width: 26px; height: 12px; border-radius: 50%; background: rgba(255, 255, 255, .28); transform: rotate(-18deg); }
+  .coin:active { transform: translateY(6px); box-shadow: 0 2px 0 var(--cd); }
+  .node.locked .coin { background: #37305f; box-shadow: 0 8px 0 #221d44; color: #6e67a0; }
+  .node.locked .coin::after { background: rgba(255, 255, 255, .06); }
+  .node.locked .coin svg { width: 26px; height: 26px; fill: currentColor; }
+  .node .badge { position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%); }
+  .node .badge .stars i { width: 15px; height: 15px; }
+  .node.done .coin { font-size: 28px; }
+  .node.current .ring { position: absolute; inset: -11px -11px -5px; border-radius: 50%; border: 6px solid var(--c); opacity: .35; }
+  .node.current .ring::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 6px solid transparent; border-top-color: var(--c); border-right-color: var(--c); opacity: 1; transform: rotate(-20deg); }
+  .start { position: absolute; left: 50%; bottom: calc(100% + 18px); transform: translateX(-50%); padding: 9px 14px; border-radius: 12px; background: #fff; color: var(--cd); font: 800 15px var(--display); letter-spacing: .06em; white-space: nowrap; box-shadow: 0 3px 0 rgba(0, 0, 0, .18); animation: bob 1.4s ease-in-out infinite; }
+  .start::after { content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 8px solid transparent; border-top-color: #fff; }
+  @keyframes bob { 50% { transform: translate(-50%, -6px); } }
+
+  /* chapter trophy */
+  .node.trophy { width: 96px; height: 80px; }
+  .node.trophy .coin { width: 96px; height: 74px; border-radius: 26px; font-size: 40px; background: linear-gradient(#ffe37a, #ffc93c); box-shadow: 0 8px 0 var(--yellow-d); }
+  .node.trophy.locked .coin { background: #37305f; box-shadow: 0 8px 0 #221d44; }
+  .node.trophy.locked .coin span { filter: grayscale(1) brightness(.6); opacity: .6; }
+  .node.trophy .lbl { position: absolute; top: calc(100% + 12px); left: 50%; transform: translateX(-50%); white-space: nowrap; font: 700 12px var(--body); color: var(--mute); }
+
+  /* chapter mascots beside the path */
+  .buddy { position: absolute; width: 120px; height: 150px; top: 120px; pointer-events: none; }
+  .buddy .inst { position: absolute; font-size: 42px; bottom: 6px; filter: drop-shadow(0 4px 0 rgba(0, 0, 0, .25)); }
+  .buddy.l { left: 2%; } .buddy.r { right: 2%; }
+  .buddy.l .inst { right: -6px; } .buddy.r .inst { left: -6px; }
+  .unit.locked .buddy { filter: grayscale(1) brightness(.55); opacity: .7; }
+  .buddy .m { width: 96px; height: 120px; animation: sway 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
+  .buddy.r .m { margin-left: auto; }
+  @keyframes sway { 50% { transform: rotate(-4deg) translateY(-3px); } }
+
+  /* lesson popover */
+  .pop { position: absolute; z-index: 25; left: 50%; width: min(330px, calc(100vw - 32px)); padding: 18px; border-radius: 20px; background: var(--c); color: #fff; box-shadow: 0 6px 0 var(--cd), 0 18px 40px rgba(0, 0, 0, .35);
+    transform: translateX(-50%) scale(.9); opacity: 0; pointer-events: none; transition: transform .16s, opacity .16s; }
+  .pop.on { transform: translateX(-50%) scale(1); opacity: 1; pointer-events: auto; }
+  .pop::before { content: ''; position: absolute; top: -12px; left: var(--ax, 50%); transform: translateX(-50%); border: 12px solid transparent; border-top: 0; border-bottom-color: var(--c); }
+  .pop .k { font: 700 12px var(--body); letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+  .pop h3 { font-size: 21px; margin: 4px 0 6px; }
+  .pop .row { display: flex; align-items: center; gap: 10px; font-weight: 500; opacity: .95; margin-bottom: 14px; }
+  .pop .go { width: 100%; padding: 14px; border-radius: 14px; background: #fff; color: var(--cd); font: 800 17px var(--display); letter-spacing: .03em; box-shadow: 0 5px 0 rgba(0, 0, 0, .2); }
+  .pop.locked { background: #2d2757; box-shadow: 0 6px 0 #1c1838, 0 18px 40px rgba(0, 0, 0, .35); }
+  .pop.locked::before { border-bottom-color: #2d2757; }
+  .pop.locked .go { background: #3d3670; color: var(--mute); box-shadow: none; }
+
+  /* jump to current */
+  .jump { position: fixed; right: max(16px, calc(50% - 284px)); bottom: 100px; z-index: 22; width: 52px; height: 52px; border-radius: 16px; background: var(--card-2); border: 2px solid var(--line); box-shadow: 0 4px 0 #120f22; display: grid; place-items: center; transition: opacity .2s, transform .2s; }
+  .jump svg { width: 24px; height: 24px; stroke: var(--yellow); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+  .jump.hide { opacity: 0; transform: scale(.7); pointer-events: none; }
+  .jump.up svg { transform: rotate(180deg); }
+
+  .end { text-align: center; color: var(--mute); padding: 40px 0 10px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top" id="top"></div>
+  <header class="banner" id="banner"></header>
+  <main id="map"></main>
+  <p class="end">More chapters on the way 🎶</p>
+</div>
+<button class="jump hide" id="jump" aria-label="Jump to your next lesson"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+<div id="tabs"></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  const T = window.TONIC;
+  // one colour pair per chapter — the "scenery" here is the colour of each unit
+  const COL = [['#3ddc97', '#1d9a66'], ['#4cc9f0', '#2286ac'], ['#ff9f43', '#c46a12'], ['#9b7bff', '#6a4fd1'],
+    ['#ff7ac6', '#c4428c'], ['#2ec4b6', '#178a7f'], ['#5b8cff', '#3559c4'], ['#ff6b6b', '#c43f3f']];
+  const BG = ['#121f24', '#11192b', '#1e1622', '#17122d', '#1f1226', '#0f1d22', '#11152d', '#1f1219'];
+  const INST = ['🎹', '🎵', '🎸', '🔑', '🎷', '🌙', '🪕', '🥁'];
+  const LOCK = '<svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>';
+
+  document.getElementById('top').innerHTML =
+    '<span class="chip fire">🔥 ' + T.streak + '</span>' +
+    '<span class="chip star">⭐ ' + T.totalStars + '<span style="opacity:.55;font-size:13px">/72</span></span>' +
+    '<span class="chip cup">🏆 ' + T.trophies + '<span style="opacity:.55;font-size:13px">/8</span></span>';
+  document.getElementById('tabs').innerHTML = T.tabbar();
+
+  // winding offsets: a smooth S that continues across chapters
+  let k = 0;
+  const off = () => Math.round(Math.sin((k++) * Math.PI / 4) * 78);
+
+  const map = document.getElementById('map');
+  map.innerHTML = T.chapters.map((ch) => {
+    const [c, cd] = COL[ch.ci];
+    const start = k;
+    const nodes = ch.lessons.map((l) => {
+      const x = off();
+      const inner = l.state === 'locked' ? LOCK : l.icon;
+      return '<div class="node ' + l.state + '" style="--x:' + x + 'px">' +
+        (l.state === 'current' ? '<span class="ring"></span><span class="start">START</span>' : '') +
+        '<button class="coin" data-i="' + l.i + '" aria-label="Lesson ' + l.num + ': ' + l.title + '">' + inner + '</button>' +
+        (l.state === 'done' ? '<span class="badge">' + T.stars(l.stars) + '</span>' : '') + '</div>';
+    }).join('');
+    const tx = off();
+    const trophy = '<div class="node trophy ' + (ch.done ? 'done' : 'locked') + '" style="--x:' + tx + 'px">' +
+      '<button class="coin" data-t="' + ch.ci + '" aria-label="Chapter ' + ch.num + ' trophy"><span>🏆</span></button>' +
+      '<span class="lbl">' + (ch.done ? 'Trophy won · +50 XP' : 'Chapter trophy') + '</span></div>';
+    // buddy sits on the side the path bulges away from
+    const bulge = Math.sin((start + 1.5) * Math.PI / 4);
+    const side = bulge > 0 ? 'l' : 'r';
+    const buddy = '<div class="buddy ' + side + '"><div class="m">' +
+      T.mascot({ body: c, dark: cd, mood: ch.ci === T.curChapter ? 'wow' : 'happy' }) + '</div><span class="inst">' + INST[ch.ci] + '</span></div>';
+    return '<section class="unit ' + (ch.open ? 'open' : 'locked') + '" data-ci="' + ch.ci + '" style="--c:' + c + ';--cd:' + cd + '">' +
+      (ch.ci ? '<div class="divider">' + ch.title + '</div>' : '') +
+      buddy + '<div class="path">' + nodes + trophy + '</div></section>';
+  }).join('');
+
+  // sticky banner follows the chapter you're looking at
+  const banner = document.getElementById('banner');
+  let shown = -1;
+  function setBanner(ci) {
+    if (ci === shown) return;
+    shown = ci;
+    const ch = T.chapters[ci];
+    const [c, cd] = COL[ci];
+    banner.style.setProperty('--c', ch.open ? c : '#3d3670');
+    banner.style.setProperty('--cd', ch.open ? cd : '#251f4a');
+    document.body.style.backgroundColor = BG[ci];
+    const status = ch.done ? 'Complete' : ch.open ? ch.doneCount + ' of 3 done' : 'Locked';
+    banner.innerHTML = '<div class="t"><div class="k">Chapter ' + ch.num + ' · ' + status + '</div><h1>' + ch.title + '</h1></div>' +
+      '<button class="guide"><span>📖</span>Guide</button>';
+  }
+  const units = [...document.querySelectorAll('.unit')];
+  function onScroll() {
+    const line = innerHeight * 0.42;
+    let ci = 0;
+    units.forEach((u, i) => { if (u.getBoundingClientRect().top < line) ci = i; });
+    setBanner(ci);
+    const cur = document.querySelector('.node.current').getBoundingClientRect();
+    const jump = document.getElementById('jump');
+    const out = cur.bottom < 90 || cur.top > innerHeight - 110;
+    jump.classList.toggle('hide', !out);
+    jump.classList.toggle('up', cur.bottom < 90);
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  setBanner(0);
+
+  // popover
+  const pop = document.createElement('div');
+  pop.className = 'pop';
+  let popFor = null;
+  function closePop() { pop.classList.remove('on'); popFor = null; }
+  map.addEventListener('click', (e) => {
+    const b = e.target.closest('.coin');
+    if (!b) return;
+    e.stopPropagation();
+    if (popFor === b) return closePop();
+    popFor = b;
+    const unit = b.closest('.unit');
+    const node = b.closest('.node');
+    let html, locked;
+    if (b.dataset.t !== undefined) {
+      const ch = T.chapters[+b.dataset.t];
+      locked = !ch.done;
+      html = '<div class="k">Chapter ' + ch.num + ' trophy</div><h3>' + (ch.done ? 'You beat ' + ch.title + '!' : 'Finish all three lessons') + '</h3>' +
+        '<div class="row">' + (ch.done ? T.stars(3) + ' ' + ch.starCount + ' of 9 stars' : 'Wins a trophy and +50 XP') + '</div>' +
+        '<button class="go">' + (ch.done ? 'REPLAY CHAPTER' : 'LOCKED') + '</button>';
+    } else {
+      const l = T.lessons[+b.dataset.i];
+      locked = l.state === 'locked';
+      const why = locked ? 'Finish ' + (T.chapters[l.ci].open ? 'the lesson before' : 'Chapter ' + l.ci) + ' to unlock' : '';
+      html = '<div class="k">Lesson ' + (l.li + 1) + ' of 3 · ' + l.mins + ' min</div><h3>' + l.title + '</h3>' +
+        '<div class="row">' + (l.state === 'done' ? T.stars(l.stars) + ' Best: ' + l.stars + ' of 3' : locked ? why : '5 questions · no timer') + '</div>' +
+        '<button class="go">' + (l.state === 'done' ? 'PRACTISE AGAIN' : locked ? 'LOCKED' : 'START +15 XP') + '</button>';
+    }
+    pop.className = 'pop' + (locked ? ' locked' : '');
+    pop.innerHTML = html;
+    unit.appendChild(pop);
+    const ur = unit.getBoundingClientRect(), nr = node.getBoundingClientRect();
+    const w = Math.min(330, innerWidth - 32);
+    let cx = nr.left + nr.width / 2 - ur.left;
+    const minC = w / 2, maxC = ur.width - w / 2;
+    const left = Math.max(minC, Math.min(maxC, cx));
+    pop.style.left = left + 'px';
+    pop.style.top = (nr.bottom - ur.top + 18) + 'px';
+    pop.style.setProperty('--ax', (w / 2 + (cx - left)) + 'px');
+    void pop.offsetWidth;
+    pop.classList.add('on');
+  });
+  document.addEventListener('click', (e) => { if (!pop.contains(e.target)) closePop(); });
+
+  // land on the current lesson
+  const cur = document.querySelector('.node.current');
+  document.getElementById('jump').onclick = () => cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const land = () => { cur.scrollIntoView({ block: 'center' }); onScroll(); };
+  land();
+  addEventListener('load', land);
+})();
+</script>
+</body>
+</html>

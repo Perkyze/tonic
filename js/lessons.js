@@ -409,25 +409,25 @@
     },
   ];
 
-  // The Learn map: each chapter is an island of three lessons.
-  // isle: the island's name, mark: its landmark, land/land2: grass colours, seed: shape of the coastline.
+  // The Learn trail: each chapter is a landscape with three lessons (the scenery itself lives in js/trail.js).
+  // place: the landscape's name, mark: its emoji.
   const CHAPTERS = [
     { title: 'First notes', blurb: 'Note names, steps and the major scale', ids: ['alphabet', 'steps', 'major-scale'],
-      isle: 'Do-Re Beach', mark: '🌴', land: '#3ddc97', land2: '#1fa877', seed: 3 },
+      place: 'Meadow', mark: '🌸' },
     { title: 'Intervals and chords', blurb: 'Distances between notes, major and minor', ids: ['intervals', 'major-chords', 'minor-chords'],
-      isle: 'Triad Cove', mark: '🛖', land: '#7bd87a', land2: '#45a94a', seed: 11 },
+      place: 'Pine lake', mark: '🌲' },
     { title: 'Reading and guitar', blurb: 'The staff, the six strings, first chords', ids: ['staff', 'guitar-strings', 'guitar-chords'],
-      isle: 'Campfire Key', mark: '🏕️', land: '#ffb15c', land2: '#d9822b', seed: 7 },
+      place: 'Autumn woods', mark: '🍁' },
     { title: 'Keys and harmony', blurb: 'Key signatures, chord families, pentatonics', ids: ['keys', 'chord-family', 'pentatonic'],
-      isle: 'Keystone Isle', mark: '🏰', land: '#b49bff', land2: '#7f62e0', seed: 19 },
+      place: 'Savanna', mark: '🦒' },
     { title: 'Richer chords', blurb: 'Sevenths, new colours and inversions', ids: ['seventh-chords', 'chord-colours', 'inversions'],
-      isle: 'Blossom Reef', mark: '🌸', land: '#ff9ad2', land2: '#e0629f', seed: 23 },
+      place: 'Sunset coast', mark: '🌴' },
     { title: 'The minor side', blurb: 'Minor scales, minor keys and the bass clef', ids: ['minor-scale', 'minor-keys', 'bass-clef'],
-      isle: 'Misty Pines', mark: '🌲', land: '#4fc3a1', land2: '#2a8a74', seed: 5 },
+      place: 'Rainy moor', mark: '🌧️' },
     { title: 'Guitar, next steps', blurb: 'The neck, 7th chords and octaves', ids: ['guitar-fretboard', 'guitar-sevenths', 'guitar-octaves'],
-      isle: 'Fretboard Peaks', mark: '🏔️', land: '#8fd3f4', land2: '#4ea3cf', seed: 13 },
+      place: 'Snowy peaks', mark: '🏔️' },
     { title: 'Ears and modes', blurb: 'Hearing chords and notes, and the seven modes', ids: ['ear-progressions', 'ear-degrees', 'modes'],
-      isle: 'Mode Volcano', mark: '🌋', land: '#ff8a7a', land2: '#d4554a', seed: 29 },
+      place: 'Aurora', mark: '🌌' },
   ];
 
   root.Lessons = { CHAPTERS, LESSONS, byId: (id) => LESSONS.find((l) => l.id === id) };

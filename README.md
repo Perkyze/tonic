@@ -23,14 +23,16 @@ http(s), the Share button adds the site's link to the copied result.
 ## How it works
 
 The app has four tabs along the bottom: **Today** (the Daily Set, your week and a small card
-pointing to your current island), **Learn** (the island map), **Practice & Tools** (Smart Practice,
+pointing to your current chapter), **Learn** (the trail), **Practice & Tools** (Smart Practice,
 skill training, games and the Chord & Scale Finder) and **Profile** (level, achievements, settings).
 
-- **Learn** — a map of eight islands, one per chapter, with 24 short lessons from zero up to seventh
-  chords, minor keys, the bass clef, the guitar neck and the modes. Each island holds three
-  lessons; finishing all three wins a trophy and bonus XP and lifts the fog off the next island.
-  Your level gives a head start (Beginner: island 1, Intermediate: islands 1–4, Advanced: all),
-  and an island never locks again once opened. Each lesson earns up to three stars. The first chapters cover (note names, steps, the major scale,
+- **Learn** — a trail through eight illustrated landscapes, one per chapter (meadow, pine lake,
+  autumn woods, savanna, sunset coast, rainy moor, snowy peaks, aurora), each with its own weather.
+  24 short lessons from zero up to seventh chords, minor keys, the bass clef, the guitar neck and
+  the modes sit on the trail as chunky coins; tap one and a card drops down under it. Each chapter
+  holds three lessons; finishing all three wins a trophy and bonus XP and opens the next chapter.
+  Your level gives a head start (Beginner: chapter 1, Intermediate: chapters 1–4, Advanced: all),
+  and a chapter never locks again once opened. Each lesson earns up to three stars. The first chapters cover (note names, steps, the major scale,
   intervals, major and minor chords, reading the staff, guitar strings and first chords, keys,
   chord families, the pentatonic scale). Each lesson is a few cards to read, look at and listen
   to, then five questions on exactly that topic, with no timer.
@@ -59,7 +61,9 @@ skill training, games and the Chord & Scale Finder) and **Profile** (level, achi
 | `js/theory.js` | Notes, intervals, chords, scales, keys — with correct spelling |
 | `js/guitar.js` | Tuning, open chord shapes, fretboard maths |
 | `js/questions.js` | The 29 question generators, hints, the daily set, practice and survival selection |
-| `js/lessons.js` | The Learn map: lesson cards, each lesson's quiz, and the islands (chapters) |
+| `js/lessons.js` | Lesson cards, each lesson's quiz, and the chapters |
+| `js/scenery.js` | A tiny SVG kit (trees, hills, clouds, rocks…) used to draw the Learn trail |
+| `js/trail.js` | The eight Learn landscapes: sky, ground, trees, weather and where the coins sit |
 | `js/deepcut.js` | Deep Cut prompts and the obscurity ranking |
 | `js/audio.js` | Web Audio synth (piano and plucked-string voices) and sound effects — no audio files |
 | `js/render.js` | SVG piano, staff, guitar chord boxes and fretboard |
